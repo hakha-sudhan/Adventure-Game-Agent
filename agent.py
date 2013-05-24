@@ -16,26 +16,6 @@ NORTH, EAST, SOUTH, WEST = range(4)
 
 agent_symbols = ['^', '>', 'v', '<']
 
-def simple_print(view):
-    string = '+' + '-'*5 + '+\n'
-    for i in range(MAX_LENGTH):
-        string += '|'
-        for j in range(MAX_WIDTH):
-            if (i == 2 and j == 2):
-                string += '^'
-            else:
-                string += str(view[i][j])
-        string += '|\n'
-    string += '+' + '-'*5 + '+'
-    print string
-    
-def rotate_right(view):
-    return map(list, zip(*view[::-1]))
-
-def rotate_left(view):
-    return map(list, zip(*view)[::-1])
-
-
 class State:
     """
     Instances of this class are mutable objects encapsulating the state of the game. 
@@ -68,18 +48,7 @@ class State:
         result.append('Aresenal: {{Axe: {a}, Key: {k}, Gold: {g}, Dynamite: {d}}}'.format(**self.tools))
         result.append('Moves: {num_moves}'.format(num_moves=len(self.action_history)))
         return '\n'.join(result)
-    
-    def __normalize_view(self, view):
-        # Normalize view buffer
-        if self.orientation == NORTH:
-            return view
-        elif self.orientation == EAST:
-            return rotate_right(view)
-        elif self.orientation == SOUTH:
-            return rotate_right(rotate_right(view))
-        elif self.orientation == WEST:
-            return rotate_left(view)
-    
+
     def apply_action(self, action):
         # Normalize input
         action = action.lower()
@@ -141,21 +110,6 @@ class State:
                     ch = f.read(1)
 
                 self.global_map[r][c] = str(ch)
-        
-        # view = [[0 for j in range(MAX_WIDTH)] for i in range(MAX_LENGTH)]
-        # for i in range(MAX_LENGTH):
-        #     for j in range(MAX_WIDTH):
-        #         if not (i == MAX_LENGTH/2 and j == MAX_WIDTH/2):
-        #             ch = f.read(1)
-        #             view[i][j] = str(ch)
-        # 
-        # new_view = self.__normalize_view(view)
-        # Update global map
-        # for i in range(MAX_LENGTH):
-        #     for j in range(MAX_WIDTH):
-        #         self.global_map[self.row+i-2][self.col+j-2] = new_view[i][j]
-        # self.global_map[self.row][self.col] = agent_symbols[self.orientation]
-        # #f.close()
 
 def main():
     # Get and process command line arguments. 
