@@ -52,10 +52,15 @@ class State:
         # Tools in the agent's arsenal
         result.append('Aresenal: {{Axe: {a}, Key: {k}, Gold: {g}, Dynamite: {d}}}'.format(**self.tools))
         result.append('Moves: {num_moves}'.format(num_moves=len(self.action_history)))
+        result.append('\n'.join([str(a) for a in self.neighbors((self.row, self.col))]))
+        result.append(' '.join(str(coord) for coord in self.explore((self.row, self.col))))
         return '\n'.join(result)
 
     def is_over(self):
         return self.won or self.lost
+
+    def action_is_effective(self, action):
+        pass
 
     def apply_action(self, action):
         # Normalize input
@@ -105,11 +110,38 @@ class State:
                     return True
             return False
 
-    def neighbors(self):
+    def neighbors(self, coord):
+        x, y = coord
+        for dx in range(-1, 2):
+            for dy in range(-1, 2):
+                if bool(dx) ^ bool(dy): # eXclusive OR
+                    
+                    try:
+                        ch = self.global_map[x+dx][y+dy]
+                    except IndexError:
+                        ch = '~'
+                        
+                    if not ch in ['*', 'T', '-', '~']:
+                        yield (x+dx, y+dy)
+                    
+    def explore(self, start):
+        parent = {}
+        queue = []
+        queue.append(start)
+        while queue:
+            node = queue.pop(0)
+            (x, y) = node
+            if self.global_map[x][y] in self.tools.keys():
+                path = [node]
+                while not path[-1] == start:
+                    path.append(parent[path[-1]])
+                path.reverse()
+                return path                
+            for neighbor in self.neighbors(node):
+                if not neighbor in parent:
+                    parent[neighbor] = node
+                    queue.append(neighbor)
         return []
-        
-    def explore(self):
-        pass
 
     def update_map(self, f):
         r = c = 0
