@@ -145,7 +145,10 @@ def main():
 
         #action_string = raw_input('Enter Action(s): ')
         
-        action_string = actions.pop(0)
+        try:
+            action_string = actions.pop(0)
+        except IndexError:
+            action_string = raw_input('Enter Action(s): ')
         
         state.apply_action(action_string)
 
