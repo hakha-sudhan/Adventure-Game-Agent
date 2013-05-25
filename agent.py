@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import socket, sys, optparse
+import socket, sys, optparse, json
 
 # Constants
 GLOBAL_MAX_WIDTH = 20
@@ -15,6 +15,10 @@ MAX_DIM = MAX_WIDTH * MAX_LENGTH
 NORTH, EAST, SOUTH, WEST = range(4)
 
 agent_symbols = ['^', '>', 'v', '<']
+
+actions = []
+with open('actions.json', 'r') as infile:
+	actions = json.load(infile)
 
 class State:
     """
@@ -53,7 +57,8 @@ class State:
         # Normalize input
         action = action.lower()
         self.action_history.append(action)
-        
+      	with open('actions.json', 'w') as outfile:
+      		json.dump(self.action_history, outfile)
         if action == 'l':
             self.orientation = (self.orientation - 1) % 4
             return True
@@ -138,7 +143,9 @@ def main():
         
         print state
 
-        action_string = raw_input('Enter Action(s): ')
+        #action_string = raw_input('Enter Action(s): ')
+        
+        action_string = actions.pop(0)
         
         state.apply_action(action_string)
 
