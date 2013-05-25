@@ -18,8 +18,8 @@ agent_symbols = ['^', '>', 'v', '<']
 
 actions = []
 with open('actions.json', 'r') as infile:
-	actions = json.load(infile)
-
+	actions = json.load(infile)	
+	
 class State:
     """
     Instances of this class are mutable objects encapsulating the state of the game. 
@@ -38,6 +38,7 @@ class State:
             'g': 0,
             'd': 0,
         }
+        self.won = self.lost = False
 
     def __str__(self):
         result = []
@@ -52,6 +53,9 @@ class State:
         result.append('Aresenal: {{Axe: {a}, Key: {k}, Gold: {g}, Dynamite: {d}}}'.format(**self.tools))
         result.append('Moves: {num_moves}'.format(num_moves=len(self.action_history)))
         return '\n'.join(result)
+
+    def is_over(self):
+        return self.won or self.lost
 
     def apply_action(self, action):
         # Normalize input
@@ -82,6 +86,11 @@ class State:
                 self.row, self.col = new_row, new_col
                 if cell_ahead in self.tools.keys():
                     self.tools[cell_ahead] += 1
+                
+                self.lost = (cell_ahead == '~')
+                
+                self.won = (self.tools['g'] and self.row == GLOBAL_MAX_LENGTH and self.col == GLOBAL_MAX_WIDTH)
+                
                 return True    
                 
             elif action == 'c':
@@ -95,6 +104,12 @@ class State:
                     self.tools['d'] -= 1
                     return True
             return False
+
+    def neighbors(self):
+        return []
+        
+    def explore(self):
+        pass
 
     def update_map(self, f):
         r = c = 0
@@ -138,9 +153,8 @@ def main():
     action_string = ''
     f = s.makefile('r', MAX_DIM)
     state = State()
-    while True:
+    while not state.is_over():
         state.update_map(f)
-        
         print state
 
         #action_string = raw_input('Enter Action(s): ')
