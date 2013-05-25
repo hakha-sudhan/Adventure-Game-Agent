@@ -115,14 +115,9 @@ class State:
         for dx in range(-1, 2):
             for dy in range(-1, 2):
                 if bool(dx) ^ bool(dy): # eXclusive OR
-                    
-                    try:
-                        ch = self.global_map[x+dx][y+dy]
-                    except IndexError:
-                        ch = '~'
-                        
-                    if not ch in ['*', 'T', '-', '~']:
-                        yield (x+dx, y+dy)
+                    if 0 <= x+dx < 2*GLOBAL_MAX_LENGTH and 0 <= y+dy < 2*GLOBAL_MAX_LENGTH:
+                        if not self.global_map[x+dx][y+dy] in ['*', 'T', '-', '~']:
+                            yield (x+dx, y+dy)
                     
     def explore(self, start):
         parent = {}
