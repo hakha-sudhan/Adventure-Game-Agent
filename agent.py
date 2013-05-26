@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import socket, sys, optparse, json
+import socket, sys, optparse, json, heapq
 
 # Constants
 GLOBAL_MAX_WIDTH = 20
@@ -17,8 +17,8 @@ NORTH, EAST, SOUTH, WEST = range(4)
 agent_symbols = ['^', '>', 'v', '<']
 
 actions = []
-with open('actions.json', 'r') as infile:
-	actions = json.load(infile)	
+#with open('actions.json', 'r') as infile:
+#	actions = json.load(infile)	
 	
 class State:
     """
@@ -27,10 +27,10 @@ class State:
     State object only mutated when fed a new view and also if apply_action() returns True 
     """
 
-    def __init__(self):
+    def __init__(self, start_position=(GLOBAL_MAX_LENGTH, GLOBAL_MAX_WIDTH)):
         self.global_map = [['?' for j in range(2*GLOBAL_MAX_WIDTH)] for i in range(2*GLOBAL_MAX_LENGTH)]
         self.action_history = []
-        self.row, self.col = GLOBAL_MAX_LENGTH, GLOBAL_MAX_WIDTH
+        self.row, self.col = start_position
         self.orientation = NORTH
         self.tools = {
             'a': 0,
@@ -52,22 +52,41 @@ class State:
         # Tools in the agent's arsenal
         result.append('Aresenal: {{Axe: {a}, Key: {k}, Gold: {g}, Dynamite: {d}}}'.format(**self.tools))
         result.append('Moves: {num_moves}'.format(num_moves=len(self.action_history)))
-        result.append('\n'.join([str(a) for a in self.neighbors((self.row, self.col))]))
-        result.append(' '.join(str(coord) for coord in self.explore((self.row, self.col))))
+        result.append('->'.join(str(coord) for coord in self.explore((self.row, self.col))))
+        result.append(', '.join(str(coord) for coord in self.neighbors((self.row, self.col))))
         return '\n'.join(result)
 
     def is_over(self):
         return self.won or self.lost
 
-    def action_is_effective(self, action):
-        pass
-
+    def action_effective(self, action):
+        effective = False
+        action = action.lower()
+        if (action == 'l' or action == 'r'):
+            effective = True
+        else:
+            new_row, new_col = self.ahead()
+            cell_ahead = self.global_map[new_row][new_col] 
+        
+            if action == 'f':
+                effective = not cell_ahead in ['*', 'T', '-']
+                    
+            
+        
+        return effective
+    
+    def ahead(self):
+        d_row = d_col = 0     
+        if self.orientation == NORTH:   d_row -= 1
+        elif self.orientation == EAST:  d_col += 1
+        elif self.orientation == SOUTH: d_row += 1
+        elif self.orientation == WEST:  d_col -= 1
+        return self.row+d_row, self.col+d_col
+    
     def apply_action(self, action):
         # Normalize input
         action = action.lower()
         self.action_history.append(action)
-      	with open('actions.json', 'w') as outfile:
-      		json.dump(self.action_history, outfile)
         if action == 'l':
             self.orientation = (self.orientation - 1) % 4
             return True
@@ -75,13 +94,7 @@ class State:
             self.orientation = (self.orientation + 1) % 4
             return True
         else:
-            d_row = d_col = 0
-            if self.orientation == NORTH:   d_row -= 1
-            elif self.orientation == EAST:  d_col += 1
-            elif self.orientation == SOUTH: d_row += 1
-            elif self.orientation == WEST:  d_col -= 1
-            
-            new_row, new_col = self.row+d_row, self.col+d_col
+            new_row, new_col = self.ahead()
             cell_ahead = self.global_map[new_row][new_col] 
             
             if action == 'f':
@@ -89,6 +102,7 @@ class State:
                     return False
                 
                 self.row, self.col = new_row, new_col
+                
                 if cell_ahead in self.tools.keys():
                     self.tools[cell_ahead] += 1
                 
@@ -114,7 +128,7 @@ class State:
         x, y = coord
         for dx in range(-1, 2):
             for dy in range(-1, 2):
-                if bool(dx) ^ bool(dy): # eXclusive OR
+                if not bool(dx) == bool(dy): # Exclusive OR
                     if 0 <= x+dx < 2*GLOBAL_MAX_LENGTH and 0 <= y+dy < 2*GLOBAL_MAX_LENGTH:
                         if not self.global_map[x+dx][y+dy] in ['*', 'T', '-', '~']:
                             yield (x+dx, y+dy)
@@ -125,13 +139,13 @@ class State:
         queue.append(start)
         while queue:
             node = queue.pop(0)
-            (x, y) = node
-            if self.global_map[x][y] in self.tools.keys():
+            x, y = node
+            if self.global_map[x][y] == '?':
                 path = [node]
                 while not path[-1] == start:
                     path.append(parent[path[-1]])
                 path.reverse()
-                return path                
+                return path
             for neighbor in self.neighbors(node):
                 if not neighbor in parent:
                     parent[neighbor] = node
