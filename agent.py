@@ -33,14 +33,49 @@ agent_symbols = ['^', '>', 'v', '<']
 
 actions = []
 #with open('actions.json', 'r') as infile:
-#	actions = json.load(infile)	
+#	actions = json.load(infile)
 
 class Map:
-    def __init__(self):
-        self.map = [[UNKNOWN_SYMBOL for j in range(2*GLOBAL_MAX_WIDTH)] for i in range(2*GLOBAL_MAX_LENGTH)]
+    def __init__(self, file_object, length, width):
+        self.length, self.width = length, width
+        self.map = [[UNKNOWN_SYMBOL for j in range(width)] for i in range(length)]
+        self.file = file_object
         
     def __str__(self):
-        result.append('\n'.join([''.join(row) for row in self.map]))    
+        return '\n'.join([''.join(row) for row in self.map])
+	
+    def get(self, i, j, default=None):
+        try: 
+            return self.map[i][j]
+        except IndexError: 
+            return default
+	
+    def update(self, position, orientation):
+        r = c = 0
+        row, col = position
+        for i in range(-2, 3):
+            for j in range(-2, 3):
+                if orientation == NORTH:
+                    r, c = row+i, col+j
+                elif orientation == EAST:
+                    r, c = row+j, col-i
+                elif orientation == SOUTH:
+                    r, c = row-i, col-j
+                elif orientation == WEST:
+                    r, c = row-j, col+i
+
+                if (i == 0 and j == 0):
+                    ch = agent_symbols[orientation]
+                else:
+                    ch = self.file.read(1)
+
+                self.map[r][c] = str(ch)
+                
+    def known_cells(self):
+        """
+        Return number of cells that are known, i.e. have been explored, not UNKNOWN_SYMBOL
+        """
+        pass
 	
 class State:
     """
@@ -49,8 +84,10 @@ class State:
     State object only mutated when fed a new view and also if apply_action() returns True 
     """
 
-    def __init__(self, start_position=(GLOBAL_MAX_LENGTH, GLOBAL_MAX_WIDTH)):
-        self.global_map = [[UNKNOWN_SYMBOL for j in range(2*GLOBAL_MAX_WIDTH)] for i in range(2*GLOBAL_MAX_LENGTH)]
+    def __init__(self, start_position, map_ref):
+        self.start_position = start_position
+        self.map = map_ref
+        
         self.action_history = []
         self.row, self.col = start_position
         self.orientation = NORTH
@@ -92,9 +129,7 @@ class State:
         
             if action == 'f':
                 effective = not cell_ahead in ['*', 'T', '-']
-                    
-            
-        
+
         return effective
     
     def ahead(self):
@@ -154,15 +189,16 @@ class State:
                     if 0 <= x+dx < 2*GLOBAL_MAX_LENGTH and 0 <= y+dy < 2*GLOBAL_MAX_LENGTH:
                         if not self.global_map[x+dx][y+dy] in ['*', 'T', '-', '~']:
                             yield (x+dx, y+dy)
-                    
+
     def explore(self, start):
         parent = {}
         queue = []
         queue.append(start)
+        heapq.heappush(queue, (priority, start))
         while queue:
             node = queue.pop(0)
             x, y = node
-            if self.global_map[x][y] == '?':
+            if self.global_map[x][y] == 'g':
                 path = [node]
                 while not path[-1] == start:
                     path.append(parent[path[-1]])
@@ -193,6 +229,12 @@ class State:
                     ch = f.read(1)
 
                 self.global_map[r][c] = str(ch)
+                
+    def agent_position(self):
+        return (self.row, self.col)
+        
+    def agent_orientation(self):
+        return self.orientation
 
 def main():
     # Get and process command line arguments. 
@@ -215,10 +257,14 @@ def main():
 
     action_string = ''
     f = s.makefile('r', MAX_DIM)
+    global_map = Map(f, 2*GLOBAL_MAX_LENGTH, 2*GLOBAL_MAX_WIDTH)
     state = State()
     while not state.is_over():
-        state.update_map(f)
-        print state
+                
+        global_map.update(state.agent_position(), state.agent_orientation())
+                
+        #state.update_map(f)
+        #print state
 
         #action_string = raw_input('Enter Action(s): ')
         
