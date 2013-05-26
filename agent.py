@@ -9,7 +9,11 @@ import socket, sys, optparse, json, heapq
 # 3. Generate child states from current state with action_is_effective()
 # 4. Implement A*/Uniform cost search
 #   a. Implement manhattan distance (?) heuristic + number of tools
-# 5. 
+# 5. Search priority:
+#   a. If have gold, move to start position
+#   b. If not, look for gold
+#   c. If not, look for tools
+#   d. Else, look for nearest '?'
 
 # Constants
 GLOBAL_MAX_WIDTH = 20
@@ -20,6 +24,8 @@ MAX_WIDTH = 5
 MAX_LENGTH = 5
 MAX_DIM = MAX_WIDTH * MAX_LENGTH
 
+UNKNOWN_SYMBOL = '?'
+
 # Make shift enums
 NORTH, EAST, SOUTH, WEST = range(4)
 
@@ -28,6 +34,13 @@ agent_symbols = ['^', '>', 'v', '<']
 actions = []
 #with open('actions.json', 'r') as infile:
 #	actions = json.load(infile)	
+
+class Map:
+    def __init__(self):
+        self.map = [[UNKNOWN_SYMBOL for j in range(2*GLOBAL_MAX_WIDTH)] for i in range(2*GLOBAL_MAX_LENGTH)]
+        
+    def __str__(self):
+        result.append('\n'.join([''.join(row) for row in self.map]))    
 	
 class State:
     """
@@ -37,7 +50,7 @@ class State:
     """
 
     def __init__(self, start_position=(GLOBAL_MAX_LENGTH, GLOBAL_MAX_WIDTH)):
-        self.global_map = [['?' for j in range(2*GLOBAL_MAX_WIDTH)] for i in range(2*GLOBAL_MAX_LENGTH)]
+        self.global_map = [[UNKNOWN_SYMBOL for j in range(2*GLOBAL_MAX_WIDTH)] for i in range(2*GLOBAL_MAX_LENGTH)]
         self.action_history = []
         self.row, self.col = start_position
         self.orientation = NORTH
