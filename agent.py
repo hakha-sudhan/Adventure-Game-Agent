@@ -2,6 +2,15 @@
 
 import socket, sys, optparse, json, heapq
 
+# TODO:
+# 1. Make State immutable
+#   a. global_map to be encapsulated by another class, states to have reference to that class
+# 2. Finish implementing action_is_effective()
+# 3. Generate child states from current state with action_is_effective()
+# 4. Implement A*/Uniform cost search
+#   a. Implement manhattan distance (?) heuristic + number of tools
+# 5. 
+
 # Constants
 GLOBAL_MAX_WIDTH = 20
 GLOBAL_MAX_LENGTH = 20
