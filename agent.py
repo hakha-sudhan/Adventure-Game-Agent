@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
-import socket, sys, optparse, json, heapq
-
+import socket, sys, optparse, json, heapq, pprint
 # TODO:
 # 1. Make State immutable
 #   a. global_map to be encapsulated by another class, states to have reference to that class
@@ -45,7 +44,7 @@ actions = []
 #         return '\n'.join([''.join(row) for row in self.map])
         
 class State:
-    def __init__(self, file_object, start_position=(GLOBAL_MAX_LENGTH, GLOBAL_MAX_WIDTH)):
+    def __init__(self, file_object, start_position=(0, 0)):
         self.start_position = start_position
         self.file = file_object
         self.map = {}#[[UNKNOWN_SYMBOL for j in range(2*GLOBAL_MAX_WIDTH)] for i in range(2*GLOBAL_MAX_LENGTH)]
@@ -62,11 +61,6 @@ class State:
 
     def is_over(self):
         return (self.lost or self.won)
-    
-    def update(self, action):
-        self.update_map()
-        if self.apply(action):
-            self.file.write(action)
         
     def apply(self, action):
         # No action is valid when the game is over
@@ -87,6 +81,7 @@ class State:
             if action == 'f':
                 if cell_ahead in ['*', 'T', '-']:
                     return False
+
                 self.row, self.col = new_row, new_col
 
                 if cell_ahead in self.tools.keys():
@@ -101,7 +96,7 @@ class State:
                 if cell_ahead == 'T' and self.tools['a']:
                     return True
             elif action == 'o':
-                if cell_ahead == '_' and self.tools['k']:
+                if cell_ahead == '-' and self.tools['k']:
                     return True
             elif action == 'b':
                 if cell_ahead in ['*', 'T', '-'] and self.tools['d']:
@@ -110,41 +105,32 @@ class State:
         
     def get(self, i, j, default=None):
         try: 
-            return self.map[i][j]
-        except IndexError: 
+            return self.map[(i, j)]
+        except KeyError:
             return default
 
     def update_map(self):
-        r = c = 0
         for i in range(-2, 3):
             for j in range(-2, 3):
                 if self.orientation == NORTH:
-                    r, c = self.row+i, self.col+j
+                    position = self.row+i, self.col+j
                 elif self.orientation == EAST:
-                    r, c = self.row+j, self.col-i
+                    position = self.row+j, self.col-i
                 elif self.orientation == SOUTH:
-                    r, c = self.row-i, self.col-j
+                    position = self.row-i, self.col-j
                 elif self.orientation == WEST:
-                    r, c = self.row-j, self.col+i
+                    position = self.row-j, self.col+i
 
                 if (i == 0 and j == 0):
                     ch = agent_symbols[self.orientation]
                 else:
                     ch = self.file.read(1)
 
-                if not self.map[r]:
-                    self.map[r] = {}
-                self.map[r][c] = str(ch)
-
-    def known_cells(self):
-        """
-        Return number of cells that are known, i.e. have been explored, not UNKNOWN_SYMBOL
-        """
-        pass
+                self.map[position] = str(ch)
                 
     def __str__(self):
         result = []
-        result.append('\n'.join([''.join(row) for row in self.map]))
+        result.append('\n'.join([''.join(row) for row in self.map_to_list()]))
         result.append('Position: {pos}'.format(pos=(self.row, self.col)))
         result.append('Orientation: {orient}'.format(orient=('N', 'E', 'S', 'W')[self.orientation]))
         result.append('Aresenal: {{Axe: {a}, Key: {k}, Gold: {g}, Dynamite: {d}}}'.format(**self.tools))
@@ -171,6 +157,12 @@ class State:
         elif self.orientation == SOUTH: d_row += 1
         elif self.orientation == WEST:  d_col -= 1
         return self.row+d_row, self.col+d_col
+    
+    def map_to_list(self):
+        coordinates = self.map.keys()
+        max_row, max_col = map(max, zip(*coordinates))
+        min_row, min_col = map(min, zip(*coordinates))  
+        return [[self.get(i, j, '?') for j in range(min_col, max_col+1)] for i in range(min_row, max_row+1)]
     
     def action_effective(self, action):
         """
@@ -234,9 +226,11 @@ def main():
             action_string = actions.pop(0)
         except IndexError:
             action_string = raw_input('Enter Action(s): ')
-        if state.apply(action_string):
-            s.sendall(action_string)
-            state.update_map()
+        
+        for a in action_string:
+            if state.apply(a):
+                s.sendall(a)
+                state.update_map()
 
     s.close()
     return 0
