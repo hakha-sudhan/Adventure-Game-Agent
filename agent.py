@@ -48,7 +48,7 @@ class State:
     def __init__(self, file_object, start_position=(GLOBAL_MAX_LENGTH, GLOBAL_MAX_WIDTH)):
         self.start_position = start_position
         self.file = file_object
-        self.map = [[UNKNOWN_SYMBOL for j in range(2*GLOBAL_MAX_WIDTH)] for i in range(2*GLOBAL_MAX_LENGTH)]
+        self.map = {}#[[UNKNOWN_SYMBOL for j in range(2*GLOBAL_MAX_WIDTH)] for i in range(2*GLOBAL_MAX_LENGTH)]
         self.row, self.col = start_position
         self.orientation = NORTH
         self.tools = {
@@ -132,6 +132,8 @@ class State:
                 else:
                     ch = self.file.read(1)
 
+                if not self.map[r]:
+                    self.map[r] = {}
                 self.map[r][c] = str(ch)
 
     def known_cells(self):
