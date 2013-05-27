@@ -35,115 +35,45 @@ actions = []
 #with open('actions.json', 'r') as infile:
 #	actions = json.load(infile)
 
-class Map:
-    def __init__(self, file_object, length, width):
-        self.length, self.width = length, width
-        self.map = [[UNKNOWN_SYMBOL for j in range(width)] for i in range(length)]
-        self.file = file_object
+# class Map:
+#     def __init__(self, file_object, length, width):
+#         self.length, self.width = length, width
+#         self.map = [[UNKNOWN_SYMBOL for j in range(width)] for i in range(length)]
+#         self.file = file_object
+#         
+#     def __str__(self):
+#         return '\n'.join([''.join(row) for row in self.map])
         
-    def __str__(self):
-        return '\n'.join([''.join(row) for row in self.map])
-	
-    def get(self, i, j, default=None):
-        try: 
-            return self.map[i][j]
-        except IndexError: 
-            return default
-	
-    def update(self, position, orientation):
-        r = c = 0
-        row, col = position
-        for i in range(-2, 3):
-            for j in range(-2, 3):
-                if orientation == NORTH:
-                    r, c = row+i, col+j
-                elif orientation == EAST:
-                    r, c = row+j, col-i
-                elif orientation == SOUTH:
-                    r, c = row-i, col-j
-                elif orientation == WEST:
-                    r, c = row-j, col+i
-
-                if (i == 0 and j == 0):
-                    ch = agent_symbols[orientation]
-                else:
-                    ch = self.file.read(1)
-
-                self.map[r][c] = str(ch)
-                
-    def known_cells(self):
-        """
-        Return number of cells that are known, i.e. have been explored, not UNKNOWN_SYMBOL
-        """
-        pass
-	
 class State:
-    """
-    Instances of this class are mutable objects encapsulating the state of the game. 
-    
-    State object only mutated when fed a new view and also if apply_action() returns True 
-    """
-
-    def __init__(self, start_position, map_ref):
+    def __init__(self, file_object, start_position=(GLOBAL_MAX_LENGTH, GLOBAL_MAX_WIDTH)):
         self.start_position = start_position
-        self.map = map_ref
-        
-        self.action_history = []
+        self.file = file_object
+        self.map = [[UNKNOWN_SYMBOL for j in range(2*GLOBAL_MAX_WIDTH)] for i in range(2*GLOBAL_MAX_LENGTH)]
         self.row, self.col = start_position
         self.orientation = NORTH
         self.tools = {
             'a': 0,
             'k': 0,
-            'g': 0,
             'd': 0,
+            'g': 0,
         }
-        self.won = self.lost = False
-
-    def __str__(self):
-        result = []
-        # Agent's view of the map
-        # TODO: Print only the part of the map we have knowledge of, not the entire map 
-        result.append('\n'.join([''.join(row) for row in self.global_map]))
-        # Agent's position (note deliberate use of tuple)
-        result.append('Position: {pos}'.format(pos=(self.row, self.col)))
-        # Agent's orientation (Positional tuple created on the fly)
-        result.append('Orientation: {orient}'.format(orient=('N', 'E', 'S', 'W')[self.orientation]))
-        # Tools in the agent's arsenal
-        result.append('Aresenal: {{Axe: {a}, Key: {k}, Gold: {g}, Dynamite: {d}}}'.format(**self.tools))
-        result.append('Moves: {num_moves}'.format(num_moves=len(self.action_history)))
-        result.append('->'.join(str(coord) for coord in self.explore((self.row, self.col))))
-        result.append(', '.join(str(coord) for coord in self.neighbors((self.row, self.col))))
-        return '\n'.join(result)
+        self.lost = self.won = False
+        self.update_map()
 
     def is_over(self):
-        return self.won or self.lost
-
-    def action_effective(self, action):
-        effective = False
-        action = action.lower()
-        if (action == 'l' or action == 'r'):
-            effective = True
-        else:
-            new_row, new_col = self.ahead()
-            cell_ahead = self.global_map[new_row][new_col] 
+        return (self.lost or self.won)
+    
+    def update(self, action):
+        self.update_map()
+        if self.apply(action):
+            self.file.write(action)
         
-            if action == 'f':
-                effective = not cell_ahead in ['*', 'T', '-']
-
-        return effective
-    
-    def ahead(self):
-        d_row = d_col = 0     
-        if self.orientation == NORTH:   d_row -= 1
-        elif self.orientation == EAST:  d_col += 1
-        elif self.orientation == SOUTH: d_row += 1
-        elif self.orientation == WEST:  d_col -= 1
-        return self.row+d_row, self.col+d_col
-    
-    def apply_action(self, action):
+    def apply(self, action):
+        # No action is valid when the game is over
+        if self.is_over():
+            return False
         # Normalize input
         action = action.lower()
-        self.action_history.append(action)
         if action == 'l':
             self.orientation = (self.orientation - 1) % 4
             return True
@@ -151,66 +81,40 @@ class State:
             self.orientation = (self.orientation + 1) % 4
             return True
         else:
-            new_row, new_col = self.ahead()
-            cell_ahead = self.global_map[new_row][new_col] 
-            
+            new_row, new_col = self.position_ahead()
+            cell_ahead = self.get(new_row, new_col)
+
             if action == 'f':
                 if cell_ahead in ['*', 'T', '-']:
                     return False
-                
                 self.row, self.col = new_row, new_col
-                
+
                 if cell_ahead in self.tools.keys():
                     self.tools[cell_ahead] += 1
-                
+
                 self.lost = (cell_ahead == '~')
+                start_row, start_col = self.start_position
+                self.won = (self.tools['g'] and self.row == start_row and self.col == start_col)
                 
-                self.won = (self.tools['g'] and self.row == GLOBAL_MAX_LENGTH and self.col == GLOBAL_MAX_WIDTH)
-                
-                return True    
-                
+                return True
             elif action == 'c':
                 if cell_ahead == 'T' and self.tools['a']:
                     return True
             elif action == 'o':
-                if cell_ahead == '-' and self.tools['k']:
+                if cell_ahead == '_' and self.tools['k']:
                     return True
             elif action == 'b':
                 if cell_ahead in ['*', 'T', '-'] and self.tools['d']:
                     self.tools['d'] -= 1
                     return True
-            return False
+        
+    def get(self, i, j, default=None):
+        try: 
+            return self.map[i][j]
+        except IndexError: 
+            return default
 
-    def neighbors(self, coord):
-        x, y = coord
-        for dx in range(-1, 2):
-            for dy in range(-1, 2):
-                if not bool(dx) == bool(dy): # Exclusive OR
-                    if 0 <= x+dx < 2*GLOBAL_MAX_LENGTH and 0 <= y+dy < 2*GLOBAL_MAX_LENGTH:
-                        if not self.global_map[x+dx][y+dy] in ['*', 'T', '-', '~']:
-                            yield (x+dx, y+dy)
-
-    def explore(self, start):
-        parent = {}
-        queue = []
-        queue.append(start)
-        heapq.heappush(queue, (priority, start))
-        while queue:
-            node = queue.pop(0)
-            x, y = node
-            if self.global_map[x][y] == 'g':
-                path = [node]
-                while not path[-1] == start:
-                    path.append(parent[path[-1]])
-                path.reverse()
-                return path
-            for neighbor in self.neighbors(node):
-                if not neighbor in parent:
-                    parent[neighbor] = node
-                    queue.append(neighbor)
-        return []
-
-    def update_map(self, f):
+    def update_map(self):
         r = c = 0
         for i in range(-2, 3):
             for j in range(-2, 3):
@@ -226,15 +130,79 @@ class State:
                 if (i == 0 and j == 0):
                     ch = agent_symbols[self.orientation]
                 else:
-                    ch = f.read(1)
+                    ch = self.file.read(1)
 
-                self.global_map[r][c] = str(ch)
+                self.map[r][c] = str(ch)
+
+    def known_cells(self):
+        """
+        Return number of cells that are known, i.e. have been explored, not UNKNOWN_SYMBOL
+        """
+        pass
                 
-    def agent_position(self):
-        return (self.row, self.col)
+    def __str__(self):
+        result = []
+        result.append('\n'.join([''.join(row) for row in self.map]))
+        result.append('Position: {pos}'.format(pos=(self.row, self.col)))
+        result.append('Orientation: {orient}'.format(orient=('N', 'E', 'S', 'W')[self.orientation]))
+        result.append('Aresenal: {{Axe: {a}, Key: {k}, Gold: {g}, Dynamite: {d}}}'.format(**self.tools))
+        return '\n'.join(result)
+
+    def __key(self):
+        attr = [self.row, self.col, self.orientation]
+        attr.extend(self.tools.items())
+        return tuple(attr)
         
-    def agent_orientation(self):
+    def position(self):
+        return (self.row, self.col)
+
+    def orientation(self):
         return self.orientation
+
+    def tools(self):
+        return self.tools
+        
+    def position_ahead(self):
+        d_row = d_col = 0     
+        if self.orientation == NORTH:   d_row -= 1
+        elif self.orientation == EAST:  d_col += 1
+        elif self.orientation == SOUTH: d_row += 1
+        elif self.orientation == WEST:  d_col -= 1
+        return self.row+d_row, self.col+d_col
+    
+    def action_effective(self, action):
+        """
+        If performing action will actually bring about change in the state.
+        (N. B. By this token, walking into water and subsequently drowning is considered an effective action.)
+        """
+        # Normalize input
+        action = action.lower()
+        if action == 'l' or action == 'r':
+            return True
+        else:
+            new_row, new_col = self.ahead()
+            cell_ahead = self.map.get(new_row, new_col)
+            tools = state.tools()
+            if action == 'f':
+                if cell_ahead in ['*', 'T', '-']:
+                    return False
+                return True    
+            elif action == 'c':
+                if cell_ahead == 'T' and tools['a']:
+                    return True
+            elif action == 'o':
+                if cell_ahead == '-' and tools['k']:
+                    return True
+            elif action == 'b':
+                if cell_ahead in ['*', 'T', '-'] and tools['d']:
+                    return True
+            return False
+         
+    def __eq__(self, other):
+        return type(self) == type(other) and self.__key() == other__key()
+        
+    def __hash__(self):
+        return hash(self.__key())
 
 def main():
     # Get and process command line arguments. 
@@ -257,25 +225,16 @@ def main():
 
     action_string = ''
     f = s.makefile('r', MAX_DIM)
-    global_map = Map(f, 2*GLOBAL_MAX_LENGTH, 2*GLOBAL_MAX_WIDTH)
-    state = State()
-    while not state.is_over():
-                
-        global_map.update(state.agent_position(), state.agent_orientation())
-                
-        #state.update_map(f)
-        #print state
-
-        #action_string = raw_input('Enter Action(s): ')
-        
+    state = State(f)
+    while not state.is_over():                
+        print state
         try:
             action_string = actions.pop(0)
         except IndexError:
             action_string = raw_input('Enter Action(s): ')
-        
-        state.apply_action(action_string)
-
-        s.sendall(action_string)
+        if state.apply(action_string):
+            s.sendall(action_string)
+            state.update_map()
 
     s.close()
     return 0
