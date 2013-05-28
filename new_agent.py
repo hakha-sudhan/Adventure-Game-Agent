@@ -18,8 +18,13 @@ NORTH, EAST, SOUTH, WEST = range(4)
 
 AGENT_SYMBOL = ('^', '>', 'v', '<')
 
+# TODO: docstring and comments
+
 # TODO: This method needs to be implemented more elegantly
-#       Perhaps need to rethink how past moves are stored
+#       Perhaps need to rethink how past moves are stored,
+#       also keep in mind a list of moves leading to a state
+#       may be required to compute the 'distance' (length of the list)
+#       for Dijkstra's
 def backtrace(parent, start, end):
     path = [end]
     moves = [end.last_move]
@@ -31,7 +36,9 @@ def backtrace(parent, start, end):
     moves.reverse()
     return moves
 
-def BFS(state, dynamite=True, goal_test=lambda node: node.tools['g'] and (node.row, node.col) == (0, 0)):
+# TODO: Once the ordering is figured out, improve this with A* search using the manhattan distance heuristic
+#       when the goal states position coordinates are known, otherwise, just use the distance travelled so far (move history length)
+def find_path(state, dynamite=True, goal_test=lambda node: node.tools['g'] and (node.row, node.col) == (0, 0)):
     queue = []
     parent = {}
     queue.append(state)
@@ -51,7 +58,7 @@ def BFS(state, dynamite=True, goal_test=lambda node: node.tools['g'] and (node.r
 #       for now, don't worry about doing all this in-place in the BFS, just so seperate BFS's with different parameters (goal_test functions)
 #       etc. until we figure out the correct order of operations, then improve upon performance
 def get_action(state):
-    explore = BFS(state, dynamite=False, goal_test=lambda node:node.terra_incognita())
+    explore = find_path(state, dynamite=False, goal_test=lambda node:node.terra_incognita())
     if explore:
         return explore
     else:
