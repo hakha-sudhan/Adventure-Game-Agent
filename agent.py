@@ -62,6 +62,19 @@ class State:
     def is_over(self):
         return (self.lost or self.won)
         
+    def is_unexplored(dict, square):
+		x,y = square; 
+	
+		for dy in range (0, 3):
+			if ( dict.get( (x+2, y+dy) ) ):
+				return False
+	
+		for dx in range (0, 3):
+			if ( dict.get( (x+dx, y+2) ) ):
+				return False
+	
+		return True
+        
     def apply(self, action):
         # No action is valid when the game is over
         if self.is_over():
