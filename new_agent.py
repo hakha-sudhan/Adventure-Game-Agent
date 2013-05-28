@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import socket, sys, optparse, json, heapq, pprint, copy
+
 # TODO:
 # 1. Make State immutable
 #   a. global_map to be encapsulated by another class, states to have reference to that class
@@ -31,6 +32,18 @@ NORTH, EAST, SOUTH, WEST = range(4)
 agent_symbols = ['^', '>', 'v', '<']
 
 def get_action(state):
+    queue = []
+    queue.append(state)
+    marker = set()
+    while queue:
+        node = queue.pop(0)
+        print node
+        if node.tools['g']:
+            return node.move_history()
+        for successor in node.successors():
+            if not successor in marker:
+                marker.add(successor)
+                queue.append(successor)
     return raw_input('Enter Action(s): ')
 
 class Map(dict):
@@ -45,8 +58,20 @@ class ImmutableState:
         self.map = environment_map.copy()
         self.row, self.col = position
         self.orientation = orientation
-        self.tools = tools
+        self.tools = tools.copy()
     
+    def current_cell(self):
+        return self.map.get((self.row, self.col))
+    
+    def effective_actions(self):
+        return [a for a in ('l', 'r', 'f', 'c', 'o', 'b') if self.action_effective(a)]
+    
+    def successors(self):
+        for a in self.effective_actions():
+            successor = self.apply(a)
+            if successor:
+                yield successor
+
     def update_map(self, file_object):
         for i in range(-2, 3):
             for j in range(-2, 3):
@@ -76,20 +101,22 @@ class ImmutableState:
         if not self.is_over():            
             if action == 'l':
                 new_state.orientation = (new_state.orientation - 1) % 4
+                new_state.map[(new_state.row, new_state.col)] = agent_symbols[new_state.orientation]
             elif action == 'r':
                 new_state.orientation = (new_state.orientation + 1) % 4
+                new_state.map[(new_state.row, new_state.col)] = agent_symbols[new_state.orientation]
             else:
                 new_row, new_col = new_state.position_ahead()
-                cell_ahead = new_state.map.get((new_row, new_col))
-
+                cell_ahead = new_state.map.get((new_row, new_col), '?')
+                
                 if action == 'f':
-                    if cell_ahead in ['*', 'T', '-']:
+                    if cell_ahead in ['*', 'T', '-', '?']:
                         return new_state
                     else:
                         new_state.map[(new_state.row, new_state.col)] = ' '
                         new_state.row, new_state.col = new_row, new_col
                         if not cell_ahead == '~':   
-                            new_state.map[(new_state.row, new_state.col)] = ' '
+                            new_state.map[(new_state.row, new_state.col)] = agent_symbols[new_state.orientation]
                             if cell_ahead in new_state.tools.keys():
                                 new_state.tools[cell_ahead] += 1
                 elif action == 'c':
@@ -164,11 +191,11 @@ class ImmutableState:
             return True
         else:
             new_row, new_col = self.position_ahead()
-            cell_ahead = self.get(new_row, new_col)
+            cell_ahead = self.map.get((new_row, new_col))
             if action == 'f':
                 if cell_ahead in ['*', 'T', '-']:
                     return False
-                return True    
+                return True
             elif action == 'c':
                 if cell_ahead == 'T' and self.tools['a']:
                     return True
@@ -181,7 +208,7 @@ class ImmutableState:
             return False
 
     def __eq__(self, other):
-        return type(self) == type(other) and self.__key() == other__key()
+        return type(self) == type(other) and self.__key() == other.__key()
 
     def __hash__(self):
         return hash(self.__key())
@@ -341,7 +368,7 @@ class State:
             return False
          
     def __eq__(self, other):
-        return type(self) == type(other) and self.__key() == other__key()
+        return type(self) == type(other) and self.__key() == other.__key()
         
     def __hash__(self):
         return hash(self.__key())
@@ -371,11 +398,13 @@ def main():
     state.update_map(f)
     while not state.is_over():                
         print state
+        print '\n'.join([str(st) for st in state.successors()])
+        
         action_string = get_action(state)
         for a in action_string:
             state = state.apply(a)
             s.sendall(a)
-            #state.update_map(f)
+            state.update_map(f)
 
     s.close()
     return 0
