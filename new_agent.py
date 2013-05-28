@@ -18,6 +18,8 @@ NORTH, EAST, SOUTH, WEST = range(4)
 
 AGENT_SYMBOL = ('^', '>', 'v', '<')
 
+# TODO: This method needs to be implemented more elegantly
+#       Perhaps need to rethink how past moves are stored
 def backtrace(parent, start, end):
     path = [end]
     moves = [end.last_move]
@@ -39,10 +41,15 @@ def BFS(state, dynamite=True, goal_test=lambda node: node.tools['g'] and (node.r
         if goal_test(node):
             return backtrace(parent, state, node)
         for successor in node.successors(dynamite):
+            # TODO: This simplistic cycle checking is questionable. Further testing required.
             if not successor in parent:
                 parent[successor] = node
                 queue.append(successor)
 
+# TODO: Actually figure out the order in which to do things, i.e. first explore as much as possible without dynamite, 
+#       if gold is seen, go to it and this time use dynamite, otherwise go to tool without dynamite, etc. etc.
+#       for now, don't worry about doing all this in-place in the BFS, just so seperate BFS's with different parameters (goal_test functions)
+#       etc. until we figure out the correct order of operations, then improve upon performance
 def get_action(state):
     explore = BFS(state, dynamite=False, goal_test=lambda node:node.terra_incognita())
     if explore:
@@ -66,18 +73,14 @@ class State:
                         return True
         return False
     
-    def move_history(self):
-        return self.action_history
-        
-    def current_cell(self):
-        return self.map.get((self.row, self.col))
-    
     def successors(self, use_dynamite=True):
         possible_actions = ['l', 'r', 'f', 'c', 'o']
+        # Control whether dynamite placement is actually considered
         if use_dynamite:
             possible_actions.append('b')
         for a in possible_actions:
             successor = self.apply(a)
+            # Only return successor states that are not terminal states or states that have actually changed
             if not (self == successor or successor.is_over()): 
                 yield successor
 
@@ -162,22 +165,6 @@ class State:
             return [[self.map.get((i, j), '?') for j in range(min_col, max_col+1)] for i in range(min_row, max_row+1)]
         except ValueError:
             return []
-    
-    def __str__(self):
-        result = []
-        result.append('\n'.join([''.join(row) for row in self.map_to_list()]))
-        result.append('Position: {pos}'.format(pos=(self.row, self.col)))
-        result.append('Orientation: {orient}'.format(orient=('N', 'E', 'S', 'W')[self.orientation]))
-        result.append('Aresenal: {{Axe: {a}, Key: {k}, Gold: {g}, Dynamite: {d}}}'.format(**self.tools))
-        #if self.action_history:
-        #    result.append(''.join(self.action_history))
-        return '\n'.join(result)
-
-    def __key(self):
-        attr = [self.row, self.col, self.orientation]
-        attr.extend(self.map.items())
-        attr.extend(self.tools.items())
-        return tuple(attr)
 
     def position(self):
         return (self.row, self.col)
@@ -188,6 +175,9 @@ class State:
     def tools(self):
         return self.tools
 
+    def current_cell(self):
+        return self.map.get((self.row, self.col))
+
     def position_ahead(self):
         d_row = d_col = 0     
         if self.orientation == NORTH:   d_row -= 1
@@ -196,11 +186,26 @@ class State:
         elif self.orientation == WEST:  d_col -= 1
         return self.row+d_row, self.col+d_col
 
+    def __key(self):
+        attr = [self.row, self.col, self.orientation]
+        attr.extend(self.map.items())
+        attr.extend(self.tools.items())
+        return tuple(attr)
+
     def __eq__(self, other):
         return type(self) == type(other) and self.__key() == other.__key()
 
     def __hash__(self):
         return hash(self.__key())
+
+    def __str__(self):
+        result = []
+        result.append('\n'.join([''.join(row) for row in self.map_to_list()]))
+        result.append('Position: {pos}'.format(pos=(self.row, self.col)))
+        result.append('Orientation: {orient}'.format(orient=('N', 'E', 'S', 'W')[self.orientation]))
+        result.append('Aresenal: {{Axe: {a}, Key: {k}, Gold: {g}, Dynamite: {d}}}'.format(**self.tools))
+        return '\n'.join(result)
+
 
 def main():
     # Get and process command line arguments. 
@@ -221,24 +226,21 @@ def main():
         print 'Could not bind to port: {0}'.format(options.port)
         return 1
 
-    action_string = ''
+    # TODO: Create a world model class to encapsulate these operations
+    #       Included in this is making the map_update method consistent
+    #       with the immutable state.
     f = s.makefile('r', MAX_DIM)
     state = State()
     state.update_map(f)
     while not state.is_over():                
         print state
-        #print '\n'.join([str(st) for st in state.successors()])
-        #print state.effective_actions()
-        #print '\n'.join([str(st) for st in state.terra_incognita_1()])
-        action_string = get_action(state)
-        #action_string = raw_input('Enter Action(s): ')
-        print action_string
-        for a in action_string:
-            print a
+        # Get the list of actions to perform
+        actions = get_action(state)
+        # so we can perform more than one action each time to avoid recomputing values
+        for a in actions:
             state = state.apply(a)
             s.sendall(a)
             state.update_map(f)
-            
     s.close()
     return 0
 
