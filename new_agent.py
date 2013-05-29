@@ -20,23 +20,6 @@ AGENT_SYMBOL = ('^', '>', 'v', '<')
 
 # TODO: docstring and comments
 
-# TODO: This method needs to be implemented more elegantly
-#       Perhaps need to rethink how past moves are stored,
-#       also keep in mind a list of moves leading to a state
-#       may be required to compute the 'distance' (length of the list)
-#       for Dijkstra's
-def backtrace(parent, start, end):
-    path = [end]
-    moves = [end.last_move]
-    while not path[-1] == start:
-        the_parent = parent[path[-1]]
-        path.append(the_parent)
-        moves.append(the_parent.last_move)
-    moves.pop()
-    moves.reverse()
-    print moves
-    return moves
-
 # TODO: Once the ordering is figured out, improve this with A* search using the manhattan distance heuristic
 #       when the goal states position coordinates are known, otherwise, just use the distance travelled so far (move history length)
 def find_path(state, dynamite=True, tools=True, goal_test=lambda node: node.tools['g'] and (node.row, node.col) == (0, 0)):
@@ -48,7 +31,6 @@ def find_path(state, dynamite=True, tools=True, goal_test=lambda node: node.tool
         node = queue.pop(0)
         #print node
         if goal_test(node):
-            #return backtrace(parent, state, node)
             return node.move_history
         for action, successor in node.successors(dynamite, tools):
             # TODO: This simplistic cycle checking is questionable. Further testing required.
@@ -62,6 +44,44 @@ def find_path(state, dynamite=True, tools=True, goal_test=lambda node: node.tool
                 queue.append(successor)
     return []
 
+def a_star(start, goal_test, dynamite=True, tools=True):
+    open_set = set()
+    closed_set = set()
+    open_priq = []
+    
+    f = {}
+    g = {}
+    
+    g[start] = 0
+    f[start] = g[start] + start.heuristic()
+    
+    open_set.add(start)
+    open_priq.append((f[start], start))
+    
+    while open_set:
+        f_value, node = heapq.heappop(open_priq)
+        if goal_test(node):
+            return node.move_history
+        open_set.remove(node)
+        closed_set.add(node)
+        for action, successor in node.successors(dynamite, tools):
+            tentative_g = g[node] + 1
+            if successor in closed_set and tentative_g >= g[successor]:
+                continue
+            
+            if not successor in open_set or tentative_g < g[successor]:
+                try:
+                    successor.move_history = node.move_history[:]
+                except AttributeError:
+                    successor.move_history = []
+                successor.move_history.append(action)
+                g[successor] = tentative_g
+                f[successor] = g[successor] + successor.heuristic()
+                if not successor in open_set:
+                    open_set.add(successor)
+                    heapq.heappush(open_priq, (f[successor], successor))
+    return None
+    
 # TODO: Actually figure out the order in which to do things, i.e. first explore as much as possible without dynamite, 
 #       if gold is seen, go to it and this time use dynamite, otherwise go to tool without dynamite, etc. etc.
 #       for now, don't worry about doing all this in-place in the BFS, just so seperate BFS's with different parameters (goal_test functions)
@@ -75,24 +95,24 @@ def get_action(state):
         return False
     
     if state.tools['g']:
-        win_path = find_path(state, dynamite=False, tools=False, goal_test=lambda node: (node.row, node.col) == (0, 0))
+        win_path = a_star(state, dynamite=False, tools=False, goal_test=lambda node: (node.row, node.col) == (0, 0))
         if win_path:
             return win_path
     else:
         if state.explored():
-            collect_gold = find_path(state, dynamite=True, goal_test=lambda node: node.tools['g'])
+            collect_gold = a_star(state, dynamite=True, goal_test=lambda node: node.tools['g'])
             if collect_gold:
                 return collect_gold
             else:
-                collect_tools = find_path(state, dynamite=True, goal_test=more_tools)
+                collect_tools = a_star(state, dynamite=True, goal_test=more_tools)
                 if collect_tools:
                     return collect_tools
         else:
-            explore_path = find_path(state, dynamite=False, goal_test=lambda node:node.reduces_terra_incognita(node.row, node.col))
+            explore_path = a_star(state, dynamite=False, tools=True, goal_test=lambda node:node.reduces_terra_incognita(node.row, node.col))
             if explore_path:
                 return explore_path
             else:
-                explore_path = find_path(state, dynamite=True, goal_test=lambda node:node.reduces_terra_incognita(node.row, node.col))
+                explore_path = a_star(state, dynamite=True, goal_test=lambda node:node.reduces_terra_incognita(node.row, node.col))
                 if explore_path:
                     return explore_path
     return raw_input('Enter Action(s): ')
@@ -104,6 +124,9 @@ class State:
         self.row, self.col = position
         self.orientation = orientation
         self.last_move = ''
+
+    def heuristic(self):
+        return 0
 
     def reduces_terra_incognita(self, row, col):
         for d_row in range(-2, 3):
