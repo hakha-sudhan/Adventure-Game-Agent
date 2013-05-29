@@ -43,6 +43,18 @@ def find_path(state, dynamite=True, tools=True, goal_test=lambda node: node.tool
                 parent[successor] = node
                 queue.append(successor)
     return []
+    
+def retrace_path(node):
+    path = []
+    has_parent = True
+    while has_parent:
+        try:
+            action, node = node.parent
+            path.append(action)
+        except AttributeError:
+            has_parent = False
+    path.reverse()
+    return path
 
 def a_star(start, goal_test, dynamite=True, tools=True):
     open_set = set()
@@ -61,7 +73,7 @@ def a_star(start, goal_test, dynamite=True, tools=True):
     while open_set:
         f_value, node = heapq.heappop(open_priq)
         if goal_test(node):
-            return node.move_history
+            return retrace_path(node)
         open_set.remove(node)
         closed_set.add(node)
         for action, successor in node.successors(dynamite, tools):
@@ -70,11 +82,7 @@ def a_star(start, goal_test, dynamite=True, tools=True):
                 continue
             
             if not successor in open_set or tentative_g < g[successor]:
-                try:
-                    successor.move_history = node.move_history[:]
-                except AttributeError:
-                    successor.move_history = []
-                successor.move_history.append(action)
+                successor.parent = (action, node)
                 g[successor] = tentative_g
                 f[successor] = g[successor] + successor.heuristic()
                 if not successor in open_set:
