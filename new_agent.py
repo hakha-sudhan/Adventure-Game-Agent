@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import sys, socket, optparse, heapq
+import sys, socket, optparse, heapq, itertools
 
 # Constants
 GLOBAL_MAX_WIDTH = 20
@@ -32,7 +32,15 @@ def retrace_path(node):
     path.reverse()
     return path
 
-def a_star(start, goal_test, use_dynamite=True, use_tools=True, concrete_target_coordinate=False, target_coordinate=(0, 0), heuristic=lambda node: 0):
+def manhattan_distance(p, q):
+    p1, p2 = p
+    q1, q2 = q
+    return abs(p1-q1) + abs(p2-q2)
+
+def a_star(start, goal_test=lambda node: False, use_concrete_goal_coordinate = False, goal_coordinate=(0, 0), use_dynamite=True, use_tools=True, heuristic=lambda node, goal_coordinate: 0):
+    if use_concrete_goal_coordinate:
+        heuristic = lambda node, goal_coordinate: manhattan_distance((node.row, node.col), goal_coordinate)
+    
     open_set = set()
     closed_set = set()
     open_priq = []
@@ -41,15 +49,15 @@ def a_star(start, goal_test, use_dynamite=True, use_tools=True, concrete_target_
     g = {}
     
     g[start] = 0
-    f[start] = g[start] + heuristic(start)
+    f[start] = g[start] + heuristic(start, goal_coordinate)
     
     open_set.add(start)
     open_priq.append((f[start], start))
     
     while open_set:
         f_value, node = heapq.heappop(open_priq)
-        if concrete_target_coordinate:
-            if (node.row, node.col) == target_coordinate:
+        if use_concrete_goal_coordinate:
+            if (node.row, node.col) == goal_coordinate:
                 return retrace_path(node)
         else:
             if goal_test(node):
@@ -64,7 +72,7 @@ def a_star(start, goal_test, use_dynamite=True, use_tools=True, concrete_target_
             if not successor in open_set or tentative_g < g[successor]:
                 successor.parent = (action, node)
                 g[successor] = tentative_g
-                f[successor] = g[successor] + heuristic(successor)
+                f[successor] = g[successor] + heuristic(successor, goal_coordinate)
                 if not successor in open_set:
                     open_set.add(successor)
                     heapq.heappush(open_priq, (f[successor], successor))
@@ -75,35 +83,24 @@ def a_star(start, goal_test, use_dynamite=True, use_tools=True, concrete_target_
 #       for now, don't worry about doing all this in-place in the BFS, just so seperate BFS's with different parameters (goal_test functions)
 #       etc. until we figure out the correct order of operations, then improve upon performance
 def get_action(state):
-    
-    def more_tools(node):
-        for t in ('a', 'd', 'k'):
-            if state.tools[t] < node.tools[t]:
-                return True
-        return False
-    
     if state.tools['g']:
-        win_path = a_star(state, use_dynamite=False, use_tools=False, goal_test=lambda node: (node.row, node.col) == (0, 0))
-        if win_path:
-            return win_path
+        # If we already have the gold, go back to the start without considering 
+        # successor states resulting from transitions (actions) that make use of any tools
+        return a_star(state, goal_coordinate=(0, 0), use_concrete_goal_coordinate=True, use_dynamite=False, use_tools=False)
     else:
-        if state.explored():
-            collect_gold = a_star(state, use_dynamite=True, goal_test=lambda node: node.tools['g'])
-            if collect_gold:
-                return collect_gold
-            else:
-                collect_tools = a_star(state, use_dynamite=True, goal_test=more_tools)
-                if collect_tools:
-                    return collect_tools
+        # We don't have gold, but if gold is on the map
+        gold_position = state.gold_position()
+        if gold_position:
+            for d, t in itertools.product([False, True], repeat=2):
+                path_to_gold = a_star(state, gold_position, use_concrete_goal_coordinate=True, use_dynamite=d, use_tools=t)
+                if path_to_gold:
+                    return path_to_gold
         else:
-            explore_path = a_star(state, use_dynamite=False, use_tools=True, goal_test=lambda node:node.reduces_terra_incognita(node.row, node.col))
-            if explore_path:
-                return explore_path
-            else:
-                explore_path = a_star(state, use_dynamite=True, goal_test=lambda node:node.reduces_terra_incognita(node.row, node.col))
-                if explore_path:
-                    return explore_path
-    return raw_input('Enter Action(s): ')
+            explore = a_star(state, goal_test=lambda node:node.reduces_terra_incognita(node.row, node.col), use_dynamite=False, use_tools=False)
+            if explore:
+                return explore
+        return raw_input('Whaddup: ')
+            
 
 class State:
     def __init__(self, environment_map={}, position=(0, 0), orientation=NORTH, tools={'a': 0, 'k': 0, 'd': 0, 'g': 0,}):
@@ -221,22 +218,33 @@ class State:
 		min_row, min_col = self.map_coord(min)
 		return [[self.map.get((i, j), '?') for j in range(min_col, max_col+1)] for i in range(min_row, max_row+1)]
 
-    def position_of(self, item):
+    def positions_of(self, item):
         max_row, max_col = self.map_coord(max)
         min_row, min_col = self.map_coord(min)
         for i in range(min_row, max_row+1):
             for j in range(min_col, max_col+1):
                 if self.map.get((i, j)) == item:
                     yield (i, j)
-					
-    def explored(self):
+
+    def list_position_of(self, item):
+        return list(self.positions_of(item))
+
+    def gold_position(self):
+	    try:
+	        return self.list_position_of('g').pop()
+	    except IndexError:
+	        return None
+		
+    def exploration_nodes(self):
         max_row, max_col = self.map_coord(max)
         min_row, min_col = self.map_coord(min)
         for i in range(min_row, max_row+1):
             for j in range(min_col, max_col+1):
-                if self.map.get((i, j)) == ' ' and self.reduces_terra_incognita(i, j):
-                    return False
-        return True
+                if self.map.get((i, j)) in (' ', 'a', 'k', 'g', 'd') and self.reduces_terra_incognita(i, j):
+                    yield (i, j)
+                    
+	def list_exploration_nodes(self):
+		return list(self.exploration_nodes())
 
     def position(self):
         return (self.row, self.col)
