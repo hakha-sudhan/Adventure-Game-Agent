@@ -19,30 +19,6 @@ NORTH, EAST, SOUTH, WEST = range(4)
 AGENT_SYMBOL = ('^', '>', 'v', '<')
 
 # TODO: docstring and comments
-
-# TODO: Once the ordering is figured out, improve this with A* search using the manhattan distance heuristic
-#       when the goal states position coordinates are known, otherwise, just use the distance travelled so far (move history length)
-def find_path(state, dynamite=True, tools=True, goal_test=lambda node: node.tools['g'] and (node.row, node.col) == (0, 0)):
-    queue = []
-    parent = {}
-    queue.append(state)
-    parent[state] = state
-    while queue:
-        node = queue.pop(0)
-        #print node
-        if goal_test(node):
-            return node.move_history
-        for action, successor in node.successors(dynamite, tools):
-            # TODO: This simplistic cycle checking is questionable. Further testing required.
-            if not successor in parent:
-                try:
-                    successor.move_history = node.move_history[:]
-                except AttributeError:
-                    successor.move_history = []
-                successor.move_history.append(action)
-                parent[successor] = node
-                queue.append(successor)
-    return []
     
 def retrace_path(node):
     path = []
