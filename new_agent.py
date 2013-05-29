@@ -110,7 +110,7 @@ class State:
         self.last_move = ''
 
     def heuristic(self):
-        return 0
+        return -self.tools['d']
 
     def reduces_terra_incognita(self, row, col):
         for d_row in range(-2, 3):
