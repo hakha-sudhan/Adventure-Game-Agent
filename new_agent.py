@@ -37,6 +37,7 @@ def manhattan_distance(p, q):
     q1, q2 = q
     return abs(p1-q1) + abs(p2-q2)
 
+# Use decorator pattern or template method pattern to make this more concise
 def a_star(start, goal_test=lambda node: False, use_concrete_goal_coordinate = False, goal_coordinate=(0, 0), use_dynamite=True, use_tools=True, heuristic=lambda node, goal_coordinate: 0):
     if use_concrete_goal_coordinate:
         heuristic = lambda node, goal_coordinate: manhattan_distance((node.row, node.col), goal_coordinate)
