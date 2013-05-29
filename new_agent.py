@@ -56,6 +56,7 @@ def a_star(start, goal_test=lambda node: False, use_concrete_goal_coordinate = F
     
     while open_set:
         f_value, node = heapq.heappop(open_priq)
+        #print node
         if use_concrete_goal_coordinate:
             if (node.row, node.col) == goal_coordinate:
                 return retrace_path(node)
@@ -78,28 +79,52 @@ def a_star(start, goal_test=lambda node: False, use_concrete_goal_coordinate = F
                     heapq.heappush(open_priq, (f[successor], successor))
     return None
     
-# TODO: Actually figure out the order in which to do things, i.e. first explore as much as possible without dynamite, 
-#       if gold is seen, go to it and this time use dynamite, otherwise go to tool without dynamite, etc. etc.
-#       for now, don't worry about doing all this in-place in the BFS, just so seperate BFS's with different parameters (goal_test functions)
-#       etc. until we figure out the correct order of operations, then improve upon performance
+# TODO: Use A* to complete implement this and complete assignment
 def get_action(state):
+    
+# Messy as f$#* right now, but the gist of it is this:
+# You can call a_star() in 2 modes, one is with an actual coordinate (x, y) and
+# the manhattan distance will be applied automatically. Just set use_concrete_goal_coordinate to True
+# and provide coordinates, otherwise, specify goal_test() as usual    
+# state.gold_position() will give you what its name suggests it give you
+# state.list_position_of(item) will give you the list of coordinates of an item
+# e.g. state.list_position_of('d') gives you all the positions where dynamite appears on the map
+# right now solves 1-4.
+# test case 5 is a known bug, the corner square is impossible to get to so that map is never considered to be explored
+# s6 is what drove me to think about a targeted exploration strategy, rather than just expanding until something is uncovered
+# since one gets stuck in the maze. state.list_exploration_nodes() gives a list of cells in the state that will lead to exploration
+# s7 just needs further thought regarding the order of operations
+# s8 is the same issue as s5 right now, once we get pass that, could have same issue as s7
+    def more_tools(node):
+        for t in ('a', 'd', 'k'):
+            if state.tools[t] < node.tools[t]:
+                return True
+        return False
+    
     if state.tools['g']:
-        # If we already have the gold, go back to the start without considering 
-        # successor states resulting from transitions (actions) that make use of any tools
-        return a_star(state, goal_coordinate=(0, 0), use_concrete_goal_coordinate=True, use_dynamite=False, use_tools=False)
+        win_path = a_star(state, goal_coordinate=(0,0), use_dynamite=False, use_tools=False, use_concrete_goal_coordinate=True, )
+        if win_path:
+            return win_path
     else:
-        # We don't have gold, but if gold is on the map
-        gold_position = state.gold_position()
-        if gold_position:
-            for d, t in itertools.product([False, True], repeat=2):
-                path_to_gold = a_star(state, gold_position, use_concrete_goal_coordinate=True, use_dynamite=d, use_tools=t)
-                if path_to_gold:
-                    return path_to_gold
+        if state.explored():
+            gold_pos = state.gold_position()
+            if gold_pos:
+                collect_gold = a_star(state, goal_coordinate=gold_pos, use_concrete_goal_coordinate=True, use_dynamite=True)
+                if collect_gold:
+                    return collect_gold
+
+                collect_tools = a_star(state, use_dynamite=True, goal_test=more_tools)
+                if collect_tools:
+                    return collect_tools
         else:
-            explore = a_star(state, goal_test=lambda node:node.reduces_terra_incognita(node.row, node.col), use_dynamite=False, use_tools=False)
-            if explore:
-                return explore
-        return raw_input('Whaddup: ')
+            explore_path = a_star(state, use_dynamite=False, use_tools=True, goal_test=lambda node:node.reduces_terra_incognita(node.row, node.col))
+            if explore_path:
+                return explore_path
+            else:
+                explore_path = a_star(state, use_dynamite=True, goal_test=lambda node:node.reduces_terra_incognita(node.row, node.col))
+                if explore_path:
+                    return explore_path
+    return raw_input('Enter Action(s): ')
             
 
 class State:
@@ -234,6 +259,15 @@ class State:
 	        return self.list_position_of('g').pop()
 	    except IndexError:
 	        return None
+
+    def explored(self):
+        max_row, max_col = self.map_coord(max)
+        min_row, min_col = self.map_coord(min)
+        for i in range(min_row, max_row+1):
+            for j in range(min_col, max_col+1):
+                if self.map.get((i, j)) in (' ', 'a', 'k', 'g', 'd') and self.reduces_terra_incognita(i, j):
+                    return False
+        return True
 		
     def exploration_nodes(self):
         max_row, max_col = self.map_coord(max)
