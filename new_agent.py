@@ -58,7 +58,7 @@ def find_path(state, dynamite=True, goal_test=lambda node: node.tools['g'] and (
 #       for now, don't worry about doing all this in-place in the BFS, just so seperate BFS's with different parameters (goal_test functions)
 #       etc. until we figure out the correct order of operations, then improve upon performance
 def get_action(state):
-    explore = find_path(state, dynamite=False, goal_test=lambda node:node.terra_incognita())
+    explore = find_path(state, dynamite=False, goal_test=lambda node:node.reduces_terra_incognita())
     if explore:
         return explore
     else:
@@ -72,7 +72,7 @@ class State:
         self.orientation = orientation
         self.last_move = ''
 
-    def terra_incognita(self):
+    def reduces_terra_incognita(self):
         for d_row in range(-2, 3):
             for d_col in range(-2, 3):
                 if abs(d_row) == 2 or abs(d_col) == 2:
@@ -164,14 +164,34 @@ class State:
     def is_over(self):
         return self.won() or self.lost()
     
-    def map_to_list(self):
-        coordinates = self.map.keys()
+    def map_coord(self, fn):
         try:
-            max_row, max_col = map(max, zip(*coordinates))
-            min_row, min_col = map(min, zip(*coordinates))  
-            return [[self.map.get((i, j), '?') for j in range(min_col, max_col+1)] for i in range(min_row, max_row+1)]
-        except ValueError:
-            return []
+        	coordinates = self.map.keys()
+    		return tuple(map(fn, zip(*coordinates)))
+		except ValueError:
+			return []
+
+    def map_to_list(self):
+		max_row, max_col = self.map_coord(max)
+		min_row, min_col = self.map_coord(min)
+		return [[self.map.get((i, j), '?') for j in range(min_col, max_col+1)] for i in range(min_row, max_row+1)]
+
+	def position_of(self, item):
+		max_row, max_col = self.map_coord(max)
+		min_row, min_col = self.map_coord(min)
+		for i in range(min_row, max_row+1):
+			for j in range(min_col, max_col+1):
+				if self.map.get((i, j)) == item:
+					yield (i, j)
+					
+	def explored(self, item):
+		max_row, max_col = self.map_coord(max)
+		min_row, min_col = self.map_coord(min)
+		for i in range(min_row, max_row+1):
+			for j in range(min_col, max_col+1):
+				if self.map.get((i, j)) == ' ' and self.reduces_terra_incognita(): # FIXME
+					return False
+		return True
 
     def position(self):
         return (self.row, self.col)
