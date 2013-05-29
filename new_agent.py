@@ -32,7 +32,7 @@ def retrace_path(node):
     path.reverse()
     return path
 
-def a_star(start, goal_test, dynamite=True, tools=True):
+def a_star(start, goal_test, use_dynamite=True, use_tools=True, concrete_target_coordinate=False, target_coordinate=(0, 0), heuristic=lambda node: 0):
     open_set = set()
     closed_set = set()
     open_priq = []
@@ -41,18 +41,22 @@ def a_star(start, goal_test, dynamite=True, tools=True):
     g = {}
     
     g[start] = 0
-    f[start] = g[start] + start.heuristic()
+    f[start] = g[start] + heuristic(start)
     
     open_set.add(start)
     open_priq.append((f[start], start))
     
     while open_set:
         f_value, node = heapq.heappop(open_priq)
-        if goal_test(node):
-            return retrace_path(node)
+        if concrete_target_coordinate:
+            if (node.row, node.col) == target_coordinate:
+                return retrace_path(node)
+        else:
+            if goal_test(node):
+                return retrace_path(node)
         open_set.remove(node)
         closed_set.add(node)
-        for action, successor in node.successors(dynamite, tools):
+        for action, successor in node.successors(use_dynamite, use_tools):
             tentative_g = g[node] + 1
             if successor in closed_set and tentative_g >= g[successor]:
                 continue
@@ -60,7 +64,7 @@ def a_star(start, goal_test, dynamite=True, tools=True):
             if not successor in open_set or tentative_g < g[successor]:
                 successor.parent = (action, node)
                 g[successor] = tentative_g
-                f[successor] = g[successor] + successor.heuristic()
+                f[successor] = g[successor] + heuristic(successor)
                 if not successor in open_set:
                     open_set.add(successor)
                     heapq.heappush(open_priq, (f[successor], successor))
@@ -79,24 +83,24 @@ def get_action(state):
         return False
     
     if state.tools['g']:
-        win_path = a_star(state, dynamite=False, tools=False, goal_test=lambda node: (node.row, node.col) == (0, 0))
+        win_path = a_star(state, use_dynamite=False, use_tools=False, goal_test=lambda node: (node.row, node.col) == (0, 0))
         if win_path:
             return win_path
     else:
         if state.explored():
-            collect_gold = a_star(state, dynamite=True, goal_test=lambda node: node.tools['g'])
+            collect_gold = a_star(state, use_dynamite=True, goal_test=lambda node: node.tools['g'])
             if collect_gold:
                 return collect_gold
             else:
-                collect_tools = a_star(state, dynamite=True, goal_test=more_tools)
+                collect_tools = a_star(state, use_dynamite=True, goal_test=more_tools)
                 if collect_tools:
                     return collect_tools
         else:
-            explore_path = a_star(state, dynamite=False, tools=True, goal_test=lambda node:node.reduces_terra_incognita(node.row, node.col))
+            explore_path = a_star(state, use_dynamite=False, use_tools=True, goal_test=lambda node:node.reduces_terra_incognita(node.row, node.col))
             if explore_path:
                 return explore_path
             else:
-                explore_path = a_star(state, dynamite=True, goal_test=lambda node:node.reduces_terra_incognita(node.row, node.col))
+                explore_path = a_star(state, use_dynamite=True, goal_test=lambda node:node.reduces_terra_incognita(node.row, node.col))
                 if explore_path:
                     return explore_path
     return raw_input('Enter Action(s): ')
