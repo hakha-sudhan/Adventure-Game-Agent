@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import sys, socket, optparse
+import sys, socket, optparse, heapq
 
 # Constants
 GLOBAL_MAX_WIDTH = 20
@@ -34,35 +34,68 @@ def backtrace(parent, start, end):
         moves.append(the_parent.last_move)
     moves.pop()
     moves.reverse()
+    print moves
     return moves
 
 # TODO: Once the ordering is figured out, improve this with A* search using the manhattan distance heuristic
 #       when the goal states position coordinates are known, otherwise, just use the distance travelled so far (move history length)
-def find_path(state, dynamite=True, goal_test=lambda node: node.tools['g'] and (node.row, node.col) == (0, 0)):
+def find_path(state, dynamite=True, tools=True, goal_test=lambda node: node.tools['g'] and (node.row, node.col) == (0, 0)):
     queue = []
     parent = {}
     queue.append(state)
     parent[state] = state
     while queue:
         node = queue.pop(0)
+        #print node
         if goal_test(node):
-            return backtrace(parent, state, node)
-        for successor in node.successors(dynamite):
+            #return backtrace(parent, state, node)
+            return node.move_history
+        for action, successor in node.successors(dynamite, tools):
             # TODO: This simplistic cycle checking is questionable. Further testing required.
             if not successor in parent:
+                try:
+                    successor.move_history = node.move_history[:]
+                except AttributeError:
+                    successor.move_history = []
+                successor.move_history.append(action)
                 parent[successor] = node
                 queue.append(successor)
+    return []
 
 # TODO: Actually figure out the order in which to do things, i.e. first explore as much as possible without dynamite, 
 #       if gold is seen, go to it and this time use dynamite, otherwise go to tool without dynamite, etc. etc.
 #       for now, don't worry about doing all this in-place in the BFS, just so seperate BFS's with different parameters (goal_test functions)
 #       etc. until we figure out the correct order of operations, then improve upon performance
 def get_action(state):
-    explore = find_path(state, dynamite=False, goal_test=lambda node:node.reduces_terra_incognita())
-    if explore:
-        return explore
+    
+    def more_tools(node):
+        for t in ('a', 'd', 'k'):
+            if state.tools[t] < node.tools[t]:
+                return True
+        return False
+    
+    if state.tools['g']:
+        win_path = find_path(state, dynamite=False, tools=False, goal_test=lambda node: (node.row, node.col) == (0, 0))
+        if win_path:
+            return win_path
     else:
-        return raw_input('Enter Action(s): ')
+        if state.explored():
+            collect_gold = find_path(state, dynamite=True, goal_test=lambda node: node.tools['g'])
+            if collect_gold:
+                return collect_gold
+            else:
+                collect_tools = find_path(state, dynamite=True, goal_test=more_tools)
+                if collect_tools:
+                    return collect_tools
+        else:
+            explore_path = find_path(state, dynamite=False, goal_test=lambda node:node.reduces_terra_incognita(node.row, node.col))
+            if explore_path:
+                return explore_path
+            else:
+                explore_path = find_path(state, dynamite=True, goal_test=lambda node:node.reduces_terra_incognita(node.row, node.col))
+                if explore_path:
+                    return explore_path
+    return raw_input('Enter Action(s): ')
 
 class State:
     def __init__(self, environment_map={}, position=(0, 0), orientation=NORTH, tools={'a': 0, 'k': 0, 'd': 0, 'g': 0,}):
@@ -72,24 +105,25 @@ class State:
         self.orientation = orientation
         self.last_move = ''
 
-    def reduces_terra_incognita(self):
+    def reduces_terra_incognita(self, row, col):
         for d_row in range(-2, 3):
             for d_col in range(-2, 3):
                 if abs(d_row) == 2 or abs(d_col) == 2:
-                    if not (self.row+d_row, self.col+d_col) in self.map:
+                    if not (row+d_row, col+d_col) in self.map:
                         return True
         return False
     
-    def successors(self, use_dynamite=True):
-        possible_actions = ['l', 'r', 'f', 'c', 'o']
-        # Control whether dynamite placement is actually considered
+    def successors(self, use_dynamite=True, use_tools=True):
+        possible_actions = ['l', 'r', 'f']
+        if use_tools:
+            possible_actions.extend(['c', 'o'])
         if use_dynamite:
             possible_actions.append('b')
         for a in possible_actions:
             successor = self.apply(a)
-            # Only return successor states that are not terminal states or states that have actually changed
-            if not (self == successor or successor.is_over()): 
-                yield successor
+            # Only return successor states that are not losing states or states that have actually changed
+            if not (self == successor or successor.lost()): 
+                yield (a, successor)
 
     def apply(self, action):
         # No action is valid when the game is over
@@ -166,32 +200,32 @@ class State:
     
     def map_coord(self, fn):
         try:
-        	coordinates = self.map.keys()
-    		return tuple(map(fn, zip(*coordinates)))
-		except ValueError:
-			return []
+            coordinates = self.map.keys()
+            return map(fn, zip(*coordinates))
+        except ValueError:
+            return []
 
     def map_to_list(self):
 		max_row, max_col = self.map_coord(max)
 		min_row, min_col = self.map_coord(min)
 		return [[self.map.get((i, j), '?') for j in range(min_col, max_col+1)] for i in range(min_row, max_row+1)]
 
-	def position_of(self, item):
-		max_row, max_col = self.map_coord(max)
-		min_row, min_col = self.map_coord(min)
-		for i in range(min_row, max_row+1):
-			for j in range(min_col, max_col+1):
-				if self.map.get((i, j)) == item:
-					yield (i, j)
+    def position_of(self, item):
+        max_row, max_col = self.map_coord(max)
+        min_row, min_col = self.map_coord(min)
+        for i in range(min_row, max_row+1):
+            for j in range(min_col, max_col+1):
+                if self.map.get((i, j)) == item:
+                    yield (i, j)
 					
-	def explored(self, item):
-		max_row, max_col = self.map_coord(max)
-		min_row, min_col = self.map_coord(min)
-		for i in range(min_row, max_row+1):
-			for j in range(min_col, max_col+1):
-				if self.map.get((i, j)) == ' ' and self.reduces_terra_incognita(): # FIXME
-					return False
-		return True
+    def explored(self):
+        max_row, max_col = self.map_coord(max)
+        min_row, min_col = self.map_coord(min)
+        for i in range(min_row, max_row+1):
+            for j in range(min_col, max_col+1):
+                if self.map.get((i, j)) == ' ' and self.reduces_terra_incognita(i, j):
+                    return False
+        return True
 
     def position(self):
         return (self.row, self.col)
