@@ -38,9 +38,9 @@ def manhattan_distance(p, q):
     return abs(p1-q1) + abs(p2-q2)
 
 # Use decorator pattern or template method pattern to make this more concise
-def a_star(start, goal_test=lambda node: False, use_concrete_goal_coordinate = False, goal_coordinate=(0, 0), use_dynamite=True, use_tools=True, heuristic=lambda node, goal_coordinate: 0):
-    if use_concrete_goal_coordinate:
-        heuristic = lambda node, goal_coordinate: manhattan_distance((node.row, node.col), goal_coordinate)
+def a_star(start, goal_test=lambda node: False, use_concrete_goal_coordinate = False, goal_coordinate=(0, 0), use_dynamite=True, use_tools=True, heuristic = lambda node, goal_coordinate: manhattan_distance((node.row, node.col), goal_coordinate)):
+    if not use_concrete_goal_coordinate:
+        heuristic = lambda node, goal_coordinate: 0
     
     open_set = set()
     closed_set = set()
@@ -57,7 +57,10 @@ def a_star(start, goal_test=lambda node: False, use_concrete_goal_coordinate = F
     
     while open_set:
         f_value, node = heapq.heappop(open_priq)
-        #print node
+        # print node
+        # print use_concrete_goal_coordinate
+        # print goal_coordinate
+        # print use_dynamite
         if use_concrete_goal_coordinate:
             if (node.row, node.col) == goal_coordinate:
                 return retrace_path(node)
@@ -81,52 +84,73 @@ def a_star(start, goal_test=lambda node: False, use_concrete_goal_coordinate = F
     return None
     
 # TODO: Use A* to complete implement this and complete assignment
-def get_action(state):
-    
-# Messy as f$#* right now, but the gist of it is this:
-# You can call a_star() in 2 modes, one is with an actual coordinate (x, y) and
-# the manhattan distance will be applied automatically. Just set use_concrete_goal_coordinate to True
-# and provide coordinates, otherwise, specify goal_test() as usual    
-# state.gold_position() will give you what its name suggests it give you
-# state.list_position_of(item) will give you the list of coordinates of an item
-# e.g. state.list_position_of('d') gives you all the positions where dynamite appears on the map
-# right now solves 1-4.
-# test case 5 is a known bug, the corner square is impossible to get to so that map is never considered to be explored
-# s6 is what drove me to think about a targeted exploration strategy, rather than just expanding until something is uncovered
-# since one gets stuck in the maze. state.list_exploration_nodes() gives a list of cells in the state that will lead to exploration
-# s7 just needs further thought regarding the order of operations
-# s8 is the same issue as s5 right now, once we get pass that, could have same issue as s7
-    def more_tools(node):
-        for t in ('a', 'd', 'k'):
-            if state.tools[t] < node.tools[t]:
-                return True
-        return False
-    
+def get_action(state):  
     if state.tools['g']:
-        win_path = a_star(state, goal_coordinate=(0,0), use_dynamite=False, use_tools=False, use_concrete_goal_coordinate=True, )
+        win_path = a_star(state, goal_coordinate=(0,0), use_dynamite=False, use_tools=False, use_concrete_goal_coordinate=True)
         if win_path:
             return win_path
     else:
-        if state.explored():
-            gold_pos = state.gold_position()
-            if gold_pos:
-                collect_gold = a_star(state, goal_coordinate=gold_pos, use_concrete_goal_coordinate=True, use_dynamite=True)
-                if collect_gold:
-                    return collect_gold
 
-                collect_tools = a_star(state, use_dynamite=True, goal_test=more_tools)
-                if collect_tools:
-                    return collect_tools
-        else:
-            explore_path = a_star(state, use_dynamite=False, use_tools=True, goal_test=lambda node:node.reduces_terra_incognita(node.row, node.col))
-            if explore_path:
-                return explore_path
-            else:
-                explore_path = a_star(state, use_dynamite=True, goal_test=lambda node:node.reduces_terra_incognita(node.row, node.col))
-                if explore_path:
-                    return explore_path
-    return raw_input('Enter Action(s): ')
+        # try:
+        #     closest_explore = state.ordered_exploration_nodes().pop()
+        # except IndexError:
+        #     closest_explore = None
+        # if closest_explore:
+        #     explore_path = a_star(state, goal_coordinate=closest_explore, use_concrete_goal_coordinate=True, use_dynamite=False)
+        #     if explore_path:
+        #         return explore_path
+        
+        explore_path = a_star(state, goal_test = lambda node: state.reduces_terra_incognita(node.row, node.col), use_dynamite=False)
+        if explore_path:
+             return explore_path
+        
+        gold_pos = state.gold_position()
+        if gold_pos:
+            collect_gold = a_star(state, goal_coordinate=gold_pos, use_concrete_goal_coordinate=True, use_dynamite=False)
+            if collect_gold:
+                return collect_gold
+        # 
+        # explore_path = a_star(state, goal_test = lambda node: state.reduces_terra_incognita(node.row, node.col), use_dynamite=False)
+        # if explore_path:
+        #      return explore_path
+
+        try:
+            closest_tool = state.ordered_position_of(['d', 'k', 'a']).pop()
+        except IndexError:
+            closest_tool = None    
+        if closest_tool:
+            collect_tool = a_star(state, goal_coordinate=closest_tool, use_concrete_goal_coordinate=True, use_dynamite=False)
+            if collect_tool:
+                return collect_tool
+
+        gold_pos = state.gold_position()
+        if gold_pos:
+            collect_gold = a_star(state, goal_coordinate=gold_pos, use_concrete_goal_coordinate=True, use_dynamite=True, heuristic=lambda node, goal_coordinate: -100*node.tools['d'] + manhattan_distance((node.row, node.col), goal_coordinate))
+            if collect_gold:
+                return collect_gold
+
+        try:
+            closest_tool = state.ordered_position_of(['d', 'k', 'a']).pop()
+        except IndexError:
+            closest_tool = None    
+        if closest_tool:
+            collect_tool = a_star(state, goal_coordinate=closest_tool, use_concrete_goal_coordinate=True, use_dynamite=True)
+            if collect_tool:
+                return collect_tool
             
+        explore_path = a_star(state, goal_test = lambda node: state.reduces_terra_incognita(node.row, node.col), use_dynamite=True)
+        if explore_path:
+            return explore_path        
+            
+            # try:
+            #     closest_explore = state.ordered_exploration_nodes().pop()
+            # except IndexError:
+            #     closest_explore = None
+            # if closest_explore:
+            #     explore_path = a_star(state, goal_coordinate=closest_explore, use_concrete_goal_coordinate=True, use_dynamite=d)
+            #     if explore_path:
+            #         return explore_path
+    return raw_input('Enter Action(s): ')
 
 class State:
     def __init__(self, environment_map={}, position=(0, 0), orientation=NORTH, tools={'a': 0, 'k': 0, 'd': 0, 'g': 0,}):
@@ -148,60 +172,63 @@ class State:
         return False
     
     def successors(self, use_dynamite=True, use_tools=True):
-        possible_actions = ['l', 'r', 'f']
+        possible_actions = ['f', 'lf', 'rf', 'rrf']
         if use_tools:
-            possible_actions.extend(['c', 'o'])
+            if self.tools['a']:
+                possible_actions.extend(['cf', 'lcf', 'rcf', 'rrcf'])
+            if self.tools['k']:
+                possible_actions.extend(['of', 'lof', 'rof', 'rrof'])
         if use_dynamite:
-            possible_actions.append('b')
+            if self.tools['d']:
+                possible_actions.extend(['bf', 'lbf', 'rbf', 'rrbf'])
         for a in possible_actions:
             successor = self.apply(a)
             # Only return successor states that are not losing states or states that have actually changed
             if not (self == successor or successor.lost()): 
                 yield (a, successor)
 
-    def apply(self, action):
+    def apply(self, actions):
         # No action is valid when the game is over
         # Normalize input
-        action = action.lower()
+        actions = actions.lower()
 
         new_state = State(self.map, (self.row, self.col), self.orientation, self.tools)
-        new_state.last_move = action
 
-        if self.is_over():
-            return new_state
-        else:
-            if action == 'l':
-                new_state.orientation = (new_state.orientation - 1) % 4
-                new_state.map[(new_state.row, new_state.col)] = AGENT_SYMBOL[new_state.orientation]
-            elif action == 'r':
-                new_state.orientation = (new_state.orientation + 1) % 4
-                new_state.map[(new_state.row, new_state.col)] = AGENT_SYMBOL[new_state.orientation]
+        for action in actions:
+            if new_state.is_over():
+                return new_state
             else:
-                new_row, new_col = new_state.position_ahead()
-                cell_ahead = new_state.map.get((new_row, new_col))
+                if action == 'l':
+                    new_state.orientation = (new_state.orientation - 1) % 4
+                    new_state.map[(new_state.row, new_state.col)] = AGENT_SYMBOL[new_state.orientation]
+                elif action == 'r':
+                    new_state.orientation = (new_state.orientation + 1) % 4
+                    new_state.map[(new_state.row, new_state.col)] = AGENT_SYMBOL[new_state.orientation]
+                else:
+                    new_row, new_col = new_state.position_ahead()
+                    cell_ahead = new_state.map.get((new_row, new_col))
                 
-                if action == 'f':
-                    if not cell_ahead or cell_ahead in ('*', 'T', '-'):
-                        return new_state
-                    else:
-                        new_state.map[(new_state.row, new_state.col)] = ' '
-                        new_state.row, new_state.col = new_row, new_col
-                        if not cell_ahead == '~': 
-                            new_state.map[(new_state.row, new_state.col)] = AGENT_SYMBOL[new_state.orientation]
-                            if cell_ahead in new_state.tools.keys():
-                                new_state.tools[cell_ahead] += 1
-                elif action == 'c':
-                    if cell_ahead == 'T' and new_state.tools['a']:
-                        new_state.map[(new_row, new_col)] = ' '
-                elif action == 'o':
-                    if cell_ahead == '-' and new_state.tools['k']:
-                        new_state.map[(new_row, new_col)] = ' '                    
-                elif action == 'b':
-                    if cell_ahead in ('*', 'T', '-') and new_state.tools['d']:
-                        new_state.map[(new_row, new_col)] = ' '
-                        new_state.tools['d'] -= 1
-
-            return new_state
+                    if action == 'f':
+                        if not cell_ahead or cell_ahead in ('*', 'T', '-'):
+                            return new_state
+                        else:
+                            new_state.map[(new_state.row, new_state.col)] = ' '
+                            new_state.row, new_state.col = new_row, new_col
+                            if not cell_ahead == '~': 
+                                new_state.map[(new_state.row, new_state.col)] = AGENT_SYMBOL[new_state.orientation]
+                                if cell_ahead in new_state.tools.keys():
+                                    new_state.tools[cell_ahead] += 1
+                    elif action == 'c':
+                        if cell_ahead == 'T' and new_state.tools['a']:
+                            new_state.map[(new_row, new_col)] = ' '
+                    elif action == 'o':
+                        if cell_ahead == '-' and new_state.tools['k']:
+                            new_state.map[(new_row, new_col)] = ' '                    
+                    elif action == 'b':
+                        if cell_ahead in ('*', 'T', '-') and new_state.tools['d']:
+                            new_state.map[(new_row, new_col)] = ' '
+                            new_state.tools['d'] -= 1
+        return new_state
 
     def update_map(self, file_object):
         if not self.is_over():
@@ -244,20 +271,21 @@ class State:
 		min_row, min_col = self.map_coord(min)
 		return [[self.map.get((i, j), '?') for j in range(min_col, max_col+1)] for i in range(min_row, max_row+1)]
 
-    def positions_of(self, item):
+    def position_of_items(self, items):
         max_row, max_col = self.map_coord(max)
         min_row, min_col = self.map_coord(min)
         for i in range(min_row, max_row+1):
             for j in range(min_col, max_col+1):
-                if self.map.get((i, j)) == item:
+                if self.map.get((i, j)) in items:
                     yield (i, j)
 
-    def list_position_of(self, item):
-        return list(self.positions_of(item))
+    def ordered_position_of(self, items):
+        tool_positions = list(self.position_of_items(items))
+        return sorted(tool_positions, reverse=True, key=lambda position: manhattan_distance((self.row, self.col), position))
 
     def gold_position(self):
 	    try:
-	        return self.list_position_of('g').pop()
+	        return self.ordered_position_of(['g']).pop()
 	    except IndexError:
 	        return None
 
@@ -277,9 +305,10 @@ class State:
             for j in range(min_col, max_col+1):
                 if self.map.get((i, j)) in (' ', 'a', 'k', 'g', 'd') and self.reduces_terra_incognita(i, j):
                     yield (i, j)
-                    
-	def list_exploration_nodes(self):
-		return list(self.exploration_nodes())
+
+    def ordered_exploration_nodes(self):
+        explore_node_list = list(self.exploration_nodes())
+        return sorted(explore_node_list, reverse=True, key=lambda position: manhattan_distance((self.row, self.col), position))
 
     def position(self):
         return (self.row, self.col)
@@ -349,9 +378,13 @@ def main():
     state.update_map(f)
     while not state.is_over():                
         print state
+        #print state.ordered_exploration_nodes()
+        #print '\n'.join([str(suc) for act, suc in state.successors()])
         # Get the list of actions to perform
-        actions = get_action(state)
+        actions = [a for action in get_action(state) for a in list(action)]
+        
         # so we can perform more than one action each time to avoid recomputing values
+        #print actions
         for a in actions:
             state = state.apply(a)
             s.sendall(a)
