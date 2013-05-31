@@ -83,13 +83,23 @@ def a_star(start, goal_test=lambda node: False, use_concrete_goal_coordinate = F
                     heapq.heappush(open_priq, (f[successor], successor))
     return None
     
-# TODO: Use A* to complete implement this and complete assignment
+# TODO: See below, the optimal order of exploration differs, best thing to do is have the respective goal tests in the body of the A star algorithm
+#       and return whichever applies when successor states have been exhausted. The problem with these is that the successor state space is enormous
+#       so the successor state needs to be modified so that each immediate successor results in the agent moving to any of the 4 neighboring cells
+#       The current successor kind of does this but not when obstructed by a barrier, in which case, say for a wall to the left, 'lf' will simply result 
+#       in a successor state with the agent turned to the left, which not only do we not need but also incurs the cost of copying the entire state including
+#       the map. Modify successor to only consider the appropriate moves first, before creating a new state object, i.e. see that we can turn left and move
+#       forward first before doing state = state.apply('lf'). The state space is huge because we're considering so many irrelevant states and its so slow
+#       because of the large overhead in generating these states.
+#       We should see drastic improvements once this has been fixed.
 def get_action(state):  
     if state.tools['g']:
         win_path = a_star(state, goal_coordinate=(0,0), use_dynamite=False, use_tools=False, use_concrete_goal_coordinate=True)
         if win_path:
             return win_path
     else:
+
+        # WITH SOME TESTS, IT IS FASTER TO USE THIS
 
         # try:
         #     closest_explore = state.ordered_exploration_nodes().pop()
@@ -109,7 +119,9 @@ def get_action(state):
             collect_gold = a_star(state, goal_coordinate=gold_pos, use_concrete_goal_coordinate=True, use_dynamite=False)
             if collect_gold:
                 return collect_gold
-        # 
+        
+        # WITH SOME OTHER TESTS, IT IS BETTER TO EXPLORE AFTER TRYING TO GET GOLD
+        
         # explore_path = a_star(state, goal_test = lambda node: state.reduces_terra_incognita(node.row, node.col), use_dynamite=False)
         # if explore_path:
         #      return explore_path
