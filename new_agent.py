@@ -56,7 +56,7 @@ def a_star(start, goal_test=lambda node: False, use_concrete_goal_coordinate = F
     
     while open_set:
         f_value, node = heapq.heappop(open_priq)
-        print node
+        #print node
         #print use_concrete_goal_coordinate
         #print goal_coordinate
         #print use_dynamite
