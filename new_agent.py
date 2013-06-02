@@ -57,12 +57,10 @@ def a_star(start, goal_test=lambda node: False, use_concrete_goal_coordinate = F
     
     while open_set:
         f_value, node = heapq.heappop(open_priq)
-        #print node
+        print node
         #print use_concrete_goal_coordinate
         #print goal_coordinate
         #print use_dynamite
-        if node.current_cell() == 'g':
-            return retrace_path(node)
         if use_concrete_goal_coordinate:
             if (node.row, node.col) == goal_coordinate:
                 return retrace_path(node)
@@ -112,7 +110,7 @@ def get_action(state):
         #    if explore_path:
         #        return explore_path
         
-        explore_path = a_star(state, goal_test = lambda node: state.reduces_terra_incognita(node.row, node.col), use_dynamite=False)
+        explore_path = a_star(state, goal_test = lambda node: node.current_cell() == 'g' or not state.ordered_exploration_nodes() or state.reduces_terra_incognita(node.row, node.col), use_dynamite=False)
         if explore_path:
             return explore_path
 
@@ -137,24 +135,25 @@ def get_action(state):
             if collect_tool:
                 return collect_tool
 
-        gold_pos = state.gold_position()
-        if gold_pos:
-            collect_gold = a_star(state, goal_coordinate=gold_pos, use_concrete_goal_coordinate=True, use_dynamite=True, heuristic=lambda node, goal_coordinate: -100*node.tools['d'] + manhattan_distance((node.row, node.col), goal_coordinate))
-            if collect_gold:
-                return collect_gold
+        if state.tools['d']:
+            gold_pos = state.gold_position()
+            if gold_pos:
+                collect_gold = a_star(state, goal_coordinate=gold_pos, use_concrete_goal_coordinate=True, use_dynamite=True, heuristic=lambda node, goal_coordinate: -100*node.tools['d'] + manhattan_distance((node.row, node.col), goal_coordinate))
+                if collect_gold:
+                    return collect_gold
 
-        try:
-            closest_tool = state.ordered_position_of(['d', 'k', 'a']).pop()
-        except IndexError:
-            closest_tool = None    
-        if closest_tool:
-            collect_tool = a_star(state, goal_coordinate=closest_tool, use_concrete_goal_coordinate=True, use_dynamite=True)
-            if collect_tool:
-                return collect_tool
+            try:
+                closest_tool = state.ordered_position_of(['d', 'k', 'a']).pop()
+            except IndexError:
+                closest_tool = None    
+            if closest_tool:
+                collect_tool = a_star(state, goal_coordinate=closest_tool, use_concrete_goal_coordinate=True, use_dynamite=True)
+                if collect_tool:
+                    return collect_tool
             
-        explore_path = a_star(state, goal_test = lambda node: state.reduces_terra_incognita(node.row, node.col), use_dynamite=True)
-        if explore_path:
-            return explore_path        
+            explore_path = a_star(state, goal_test = lambda node: state.reduces_terra_incognita(node.row, node.col), use_dynamite=True)
+            if explore_path:
+                return explore_path        
             
             # try:
             #     closest_explore = state.ordered_exploration_nodes().pop()

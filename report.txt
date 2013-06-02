@@ -1,0 +1,5 @@
+The program has been implemented in Python, with TCP connections to the server program managed using the 'socket' module.
+
+The map is a dict of tuples, where the starting position of the agent is always (0, 0). The map is then expanded around the agent as it progresses through its exploration, where the input stream from the socket is normalized by rotating it according to the direction and position of the agent. This makes for a more efficient storage of the map than say, a fixed length/width 2-dimensional array (list in python).
+
+The main loop of the program executes until the game is over.
