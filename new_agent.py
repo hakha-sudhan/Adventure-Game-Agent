@@ -56,6 +56,7 @@ def a_star(start, goal_test=lambda node: False, use_concrete_goal_coordinate = F
     
     while open_set:
         f_value, node = heapq.heappop(open_priq)
+        print node
         if use_concrete_goal_coordinate:
             if (node.row, node.col) == goal_coordinate:
                 return retrace_path(node)
@@ -381,7 +382,7 @@ class State:
 
     def __str__(self):
         result = []
-        result.append('\n'.join([''.join(row) for row in self.map_to_list()]))
+        result.append('\n'.join([''.join(x) for x in self.map_to_list()]))
         result.append('Position: {pos}'.format(pos=(self.row, self.col)))
         result.append('Orientation: {orient}'.format(orient=('N', 'E', 'S', 'W')[self.orientation]))
         result.append('Aresenal: {{Axe: {a}, Key: {k}, Gold: {g}, Dynamite: {d}}}'.format(**self.tools))

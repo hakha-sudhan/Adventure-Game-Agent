@@ -18,9 +18,31 @@ NORTH, EAST, SOUTH, WEST = range(4)
 
 AGENT_SYMBOL = ('^', '>', 'v', '<')
 
-# TODO: docstring and comments
+"""
+The program has been implemented in Python, with TCP connections to the server program managed using the 'socket' module.
+
+The map is a dict of tuples, where the starting position of the agent is always (0, 0). The map is then expanded around the agent as it progresses through its exploration, where the input stream from the socket is normalized by rotating it according to the direction and position of the agent. This makes for a more efficient storage of the map than say, a fixed length/width 2-dimensional array (list in python).
+
+The main loop of the program executes until the game is over which is determined by either a win or a loss. A win constitutes to the agent having the gold and is back to its starting position (0,0). The agent loses the game when it has moved into water. 
+
+The agent makes moves by executing an action plan. Each action in the plan is applied to the state and sent to the game server. The map is updated with results of each action passed through the input stream.
+
+The state holds a copy of the map, the agent's current position and orientation and the tools he is in possession of. It also provides means to query the state of the map. Apart from information about the agent's whereabouts, it gives out the locations of tools and gold if their locations have been uncovered. It also generates a list of unexplored cells ordered by the their manhattan distance to the agent which are candidates for exploration. New states are generated from current states through application of a particular action.
+
+Path planning is done using a state space A* search using the manhattan distance heuristic (and in some cases, a linear combination of the manhattan distance and the number of dynamites in possession to guide the search away from potential wastage.)
+
+The search function supports two modes of operation, where there is either an explicit goal coordinate provided or some alternative goal test function is specified. Only the former uses the manhattan distance while the latter does not use any heuristic, effectively making the former an A* search and the latter the BFS (with the exception of some flags embedded in the code which will react and terminate early when gold is in sight).
+
+When planning actions to take, the agent will first attempt to explore as much a possible first, doing a search and terminating as soon as some cell which will reveal more information is found. Then, it will search ways to get to gold withoput the use of dynamite and then it will do the same with tools. Once this is done, and we are still unable to obtain the gold, we break out the dynamite and repeat the above in a slightly different order.
+
+On hindsight, the state-space search is often unecessary and adds unjustified time and space complexity since simple traversals can just be done on the map space, where the state-space search is really only required for dynamite placement. As a result, this program solves all tests 0-5 and 7-9 in under a minute (tested on CSE computer with Core i5). This program is capable of solving test 6 in a hypothetical universe where there is an inifite amount of memory. Unfortunately, we do not live in such a universe. This design decision originally seemed appealing due to its relative ease of implementation and apparent elegance, but in doing so, we traded off crucial space and time complexity.
+"""
+   
     
 def retrace_path(node):
+    """
+    Obtain the string of moves leading to the node
+    """
     path = []
     has_parent = True
     while has_parent:
@@ -33,6 +55,9 @@ def retrace_path(node):
     return path
 
 def manhattan_distance(p, q):
+    """
+    Calculate manhattan distance between two tuples of two integers
+    """
     p1, p2 = p
     q1, q2 = q
     return abs(p1-q1) + abs(p2-q2)
@@ -57,9 +82,6 @@ def a_star(start, goal_test=lambda node: False, use_concrete_goal_coordinate = F
     while open_set:
         f_value, node = heapq.heappop(open_priq)
         print node
-        #print use_concrete_goal_coordinate
-        #print goal_coordinate
-        #print use_dynamite
         if use_concrete_goal_coordinate:
             if (node.row, node.col) == goal_coordinate:
                 return retrace_path(node)
@@ -385,7 +407,7 @@ class State:
 
     def __str__(self):
         result = []
-        result.append('\n'.join([''.join(row) for row in self.map_to_list()]))
+        result.append('\n'.join([''.join(x) for x in self.map_to_list()]))
         result.append('Position: {pos}'.format(pos=(self.row, self.col)))
         result.append('Orientation: {orient}'.format(orient=('N', 'E', 'S', 'W')[self.orientation]))
         result.append('Aresenal: {{Axe: {a}, Key: {k}, Gold: {g}, Dynamite: {d}}}'.format(**self.tools))
