@@ -56,10 +56,6 @@ def a_star(start, goal_test=lambda node: False, use_concrete_goal_coordinate = F
     
     while open_set:
         f_value, node = heapq.heappop(open_priq)
-        temp = str(node)
-        #print use_concrete_goal_coordinate
-        #print goal_coordinate
-        #print use_dynamite
         if use_concrete_goal_coordinate:
             if (node.row, node.col) == goal_coordinate:
                 return retrace_path(node)
