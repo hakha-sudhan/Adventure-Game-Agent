@@ -2,4 +2,11 @@ The program has been implemented in Python, with TCP connections to the server p
 
 The map is a dict of tuples, where the starting position of the agent is always (0, 0). The map is then expanded around the agent as it progresses through its exploration, where the input stream from the socket is normalized by rotating it according to the direction and position of the agent. This makes for a more efficient storage of the map than say, a fixed length/width 2-dimensional array (list in python).
 
-The main loop of the program executes until the game is over.
+The main loop of the program executes until the game is over which is determined by either a win or a loss. A win constitutes to the agent having the gold and is back to its starting position (0,0). The agent loses the game when it has moved into water. 
+
+The agent makes moves by executing an action plan. Each action in the plan is applied to the state and sent to the game server. The map is updated with results of each action passed throughgh the input stream.
+
+The state holds a copy of the map, the agent's current position and orientation, the tools he is in possesion of and the last move. It also provides means to query the state of the map. Apart from information about the agent's whereabouts, it gives out the locations of tools and gold if their locations have been uncovered. It also generates a list of unexplored cells ordered by the their manhattan distance to the agent which are candidate [what is this used for?]. New states are generated from current states through application of a particular action. 
+
+
+The plan of action is determined by the [talk about how we 
