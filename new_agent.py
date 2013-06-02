@@ -37,7 +37,6 @@ def manhattan_distance(p, q):
     q1, q2 = q
     return abs(p1-q1) + abs(p2-q2)
 
-# Use decorator pattern or template method pattern to make this more concise
 def a_star(start, goal_test=lambda node: False, use_concrete_goal_coordinate = False, goal_coordinate=(0, 0), use_dynamite=True, use_tools=True, heuristic = lambda node, goal_coordinate: manhattan_distance((node.row, node.col), goal_coordinate)):
     if not use_concrete_goal_coordinate:
         heuristic = lambda node, goal_coordinate: 0
@@ -57,7 +56,7 @@ def a_star(start, goal_test=lambda node: False, use_concrete_goal_coordinate = F
     
     while open_set:
         f_value, node = heapq.heappop(open_priq)
-        print node
+        #print node
         #print use_concrete_goal_coordinate
         #print goal_coordinate
         #print use_dynamite
@@ -77,21 +76,18 @@ def a_star(start, goal_test=lambda node: False, use_concrete_goal_coordinate = F
             if not successor in open_set or tentative_g < g[successor]:
                 successor.parent = (action, node)
                 g[successor] = tentative_g
+                
+                gold_pos = successor.gold_position()
+                if gold_pos:
+                    heuristic =  lambda node, goal_coordinate:manhattan_distance((successor.row, successor.col), gold_pos)
+                else:
+                    heuristic = lambda node, goal_coordinate: 0
                 f[successor] = g[successor] + heuristic(successor, goal_coordinate)
                 if not successor in open_set:
                     open_set.add(successor)
                     heapq.heappush(open_priq, (f[successor], successor))
     return None
-    
-# TODO: See below, the optimal order of exploration differs, best thing to do is have the respective goal tests in the body of the A star algorithm
-#       and return whichever applies when successor states have been exhausted. The problem with these is that the successor state space is enormous
-#       so the successor state needs to be modified so that each immediate successor results in the agent moving to any of the 4 neighboring cells
-#       The current successor kind of does this but not when obstructed by a barrier, in which case, say for a wall to the left, 'lf' will simply result 
-#       in a successor state with the agent turned to the left, which not only do we not need but also incurs the cost of copying the entire state including
-#       the map. Modify successor to only consider the appropriate moves first, before creating a new state object, i.e. see that we can turn left and move
-#       forward first before doing state = state.apply('lf'). The state space is huge because we're considering so many irrelevant states and its so slow
-#       because of the large overhead in generating these states.
-#       We should see drastic improvements once this has been fixed.
+
 def get_action(state):  
     if state.tools['g']:
         win_path = a_star(state, goal_coordinate=(0,0), use_dynamite=False, use_tools=False, use_concrete_goal_coordinate=True)
@@ -248,10 +244,12 @@ class State:
             else:
                 if action == 'l':
                     new_state.orientation = (new_state.orientation - 1) % 4
-                    new_state.map[(new_state.row, new_state.col)] = AGENT_SYMBOL[new_state.orientation]
+                    new_state.map[(new_state.row, new_state.col)] = ' '
+                    #new_state.map[(new_state.row, new_state.col)] = AGENT_SYMBOL[new_state.orientation]
                 elif action == 'r':
                     new_state.orientation = (new_state.orientation + 1) % 4
-                    new_state.map[(new_state.row, new_state.col)] = AGENT_SYMBOL[new_state.orientation]
+                    new_state.map[(new_state.row, new_state.col)] = ' '
+                    #new_state.map[(new_state.row, new_state.col)] = AGENT_SYMBOL[new_state.orientation]
                 else:
                     new_row, new_col = new_state.position_ahead()
                     cell_ahead = new_state.map.get((new_row, new_col))
@@ -263,7 +261,8 @@ class State:
                             new_state.map[(new_state.row, new_state.col)] = ' '
                             new_state.row, new_state.col = new_row, new_col
                             if not cell_ahead == '~': 
-                                new_state.map[(new_state.row, new_state.col)] = AGENT_SYMBOL[new_state.orientation]
+                                #new_state.map[(new_state.row, new_state.col)] = AGENT_SYMBOL[new_state.orientation]
+                                new_state.map[(new_state.row, new_state.col)] = ' '
                                 if cell_ahead in new_state.tools.keys():
                                     new_state.tools[cell_ahead] += 1
                     elif action == 'c':
@@ -390,7 +389,7 @@ class State:
             return (self.row, self.col-1), (self.row, self.col+1), (self.row+1, self.col), (self.row-1, self.col)
 
     def __key(self):
-        attr = [self.row, self.col, self.orientation]
+        attr = [self.row, self.col]#, self.orientation]
         attr.extend(self.map.items())
         attr.extend(self.tools.items())
         return tuple(attr)
@@ -429,14 +428,11 @@ def main():
         print 'Could not bind to port: {0}'.format(options.port)
         return 1
 
-    # TODO: Create a world model class to encapsulate these operations
-    #       Included in this is making the map_update method consistent
-    #       with the immutable state.
     f = s.makefile('r', MAX_DIM)
     state = State()
     state.update_map(f)
     while not state.is_over():                
-        print state
+        #print state
         #print 'SUCCESSORS:'
         #print '\n'.join([str(suc) for act, suc in state.successors()])
         # Get the list of actions to perform
