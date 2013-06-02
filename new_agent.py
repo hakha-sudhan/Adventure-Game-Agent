@@ -61,6 +61,8 @@ def a_star(start, goal_test=lambda node: False, use_concrete_goal_coordinate = F
         #print use_concrete_goal_coordinate
         #print goal_coordinate
         #print use_dynamite
+        if node.current_cell() == 'g':
+            return retrace_path(node)
         if use_concrete_goal_coordinate:
             if (node.row, node.col) == goal_coordinate:
                 return retrace_path(node)
