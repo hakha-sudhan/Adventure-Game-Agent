@@ -56,7 +56,7 @@ def a_star(start, goal_test=lambda node: False, use_concrete_goal_coordinate = F
     
     while open_set:
         f_value, node = heapq.heappop(open_priq)
-        #print node
+        print node
         #print use_concrete_goal_coordinate
         #print goal_coordinate
         #print use_dynamite
@@ -76,10 +76,10 @@ def a_star(start, goal_test=lambda node: False, use_concrete_goal_coordinate = F
             if not successor in open_set or tentative_g < g[successor]:
                 successor.parent = (action, node)
                 g[successor] = tentative_g
-                #
+                
                 gold_pos = successor.gold_position()
                 if gold_pos:
-                    heuristic =  lambda node, goal_coordinate:manhattan_distance((successor.row, successor.col), gold_pos)
+                    heuristic = lambda node, goal_coordinate: manhattan_distance((node.row, node.col), gold_pos)
                 else:
                     heuristic = lambda node, goal_coordinate: 0
                 f[successor] = g[successor] + heuristic(successor, goal_coordinate)
@@ -94,17 +94,6 @@ def get_action(state):
         if win_path:
             return win_path
     else:
-
-        # WITH SOME TESTS, IT IS FASTER TO USE THIS
-
-        #try:
-        #    closest_explore = state.ordered_exploration_nodes().pop()
-        #except IndexError:
-        #    closest_explore = None
-        #if closest_explore:
-        #    explore_path = a_star(state, goal_coordinate=closest_explore, use_concrete_goal_coordinate=True, use_dynamite=False)
-        #    if explore_path:
-        #        return explore_path
         
         explore_path = a_star(state, goal_test = lambda node: node.current_cell() == 'g' or not state.ordered_exploration_nodes() or state.reduces_terra_incognita(node.row, node.col), use_dynamite=False)
         if explore_path:
@@ -115,12 +104,6 @@ def get_action(state):
             collect_gold = a_star(state, goal_coordinate=gold_pos, use_concrete_goal_coordinate=True, use_dynamite=False)
             if collect_gold:
                 return collect_gold
-        
-        # WITH SOME OTHER TESTS, IT IS BETTER TO EXPLORE AFTER TRYING TO GET GOLD
-        
-        #explore_path = a_star(state, goal_test = lambda node: state.reduces_terra_incognita(node.row, node.col), use_dynamite=False)
-        #if explore_path:
-        #    return explore_path
 
         try:
             closest_tool = state.ordered_position_of(['d', 'k', 'a']).pop()
@@ -432,7 +415,7 @@ def main():
     state = State()
     state.update_map(f)
     while not state.is_over():                
-        #print state
+        print state
         #print 'SUCCESSORS:'
         #print '\n'.join([str(suc) for act, suc in state.successors()])
         # Get the list of actions to perform
