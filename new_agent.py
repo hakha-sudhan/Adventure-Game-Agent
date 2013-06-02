@@ -76,7 +76,7 @@ def a_star(start, goal_test=lambda node: False, use_concrete_goal_coordinate = F
             if not successor in open_set or tentative_g < g[successor]:
                 successor.parent = (action, node)
                 g[successor] = tentative_g
-                
+                #
                 gold_pos = successor.gold_position()
                 if gold_pos:
                     heuristic =  lambda node, goal_coordinate:manhattan_distance((successor.row, successor.col), gold_pos)
